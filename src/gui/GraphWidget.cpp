@@ -34,22 +34,6 @@ static const QColor kComponentColors[] = {
     QColor(250, 190, 212), QColor(0, 128, 128),   QColor(220, 190, 255),
 };
 
-// ── 坐标变换 ──
-struct ViewTransform {
-    double scaleX, scaleY, offsetX, offsetY;
-    QPointF map(double x, double y) const {
-        return QPointF(offsetX + x * scaleX, offsetY + y * scaleY);
-    }
-    QPointF map(const QPointF& p) const {
-        return QPointF(offsetX + p.x() * scaleX, offsetY + p.y() * scaleY);
-    }
-    // 反向映射：屏幕 → 数据坐标
-    QPointF invMap(const QPointF& screen) const {
-        return QPointF((screen.x() - offsetX) / scaleX,
-                       (screen.y() - offsetY) / scaleY);
-    }
-};
-
 /// 根据位置数据计算视图变换，处理单顶点/零范围退化情况
 static ViewTransform computeViewTransform(const QHash<QString, QPointF>& positions,
                                            double widgetW, double widgetH)
@@ -268,9 +252,9 @@ void GraphWidget::mousePressEvent(QMouseEvent *event)
             m_dragging = true;
             m_dragNode = node;
 
-            ViewTransform tr = computeViewTransform(m_positions, width(), height());
+            m_dragTransform = computeViewTransform(m_positions, width(), height());
             QPointF dataPos = m_positions[m_dragNode];
-            QPointF screenCenter = tr.map(dataPos);
+            QPointF screenCenter = m_dragTransform.map(dataPos);
             m_dragOffset = event->position() - screenCenter;
             setCursor(Qt::ClosedHandCursor);
         }
@@ -281,9 +265,9 @@ void GraphWidget::mousePressEvent(QMouseEvent *event)
 void GraphWidget::mouseMoveEvent(QMouseEvent *event)
 {
     if (m_dragging && !m_dragNode.isEmpty()) {
-        ViewTransform tr = computeViewTransform(m_positions, width(), height());
+        // 使用拖动开始时的固定变换，防止拖动过程中包围盒变化导致灵敏度漂移
         QPointF newScreenPos = event->position() - m_dragOffset;
-        QPointF newDataPos = tr.invMap(newScreenPos);
+        QPointF newDataPos = m_dragTransform.invMap(newScreenPos);
         m_positions[m_dragNode] = newDataPos;
         update();
         return;

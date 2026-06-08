@@ -57,6 +57,10 @@ MainWindow::MainWindow(QWidget *parent)
     fileMenu->addSeparator();
     fileMenu->addAction("退出(&Q)", QKeySequence::Quit, this, &QWidget::close);
 
+    QMenu *editMenu = menuBar()->addMenu("编辑(&E)");
+    editMenu->addAction("撤销(&U)", QKeySequence::Undo, this, &MainWindow::onUndo);
+    editMenu->addAction("重做(&R)", QKeySequence::Redo, this, &MainWindow::onRedo);
+
     QMenu *viewMenu = menuBar()->addMenu("视图(&V)");
     viewMenu->addAction("重置布局(&R)", this, &MainWindow::onResetLayout);
 
@@ -141,6 +145,16 @@ QWidget* MainWindow::createControlBar()
     btnParse->setStyleSheet("font-weight: bold;");
     connect(btnParse, &QPushButton::clicked, this, &MainWindow::onParseAndRender);
     layout->addWidget(btnParse);
+
+    QPushButton *btnUndo = new QPushButton("↩ 撤销", this);
+    btnUndo->setToolTip("撤销文本编辑 (Ctrl+Z)");
+    connect(btnUndo, &QPushButton::clicked, this, &MainWindow::onUndo);
+    layout->addWidget(btnUndo);
+
+    QPushButton *btnRedo = new QPushButton("↪ 重做", this);
+    btnRedo->setToolTip("重做文本编辑 (Ctrl+Y)");
+    connect(btnRedo, &QPushButton::clicked, this, &MainWindow::onRedo);
+    layout->addWidget(btnRedo);
 
     layout->addSpacing(20);
 
@@ -446,11 +460,30 @@ void MainWindow::onClearHighlights()
 
 void MainWindow::onClearAll()
 {
+    if (!m_textEdit->document()->isEmpty()) {
+        auto ret = QMessageBox::question(
+            this, "确认清除",
+            "确定要清除全部内容吗？\n\n"
+            "提示：清除后可通过 Ctrl+Z 或「↩ 撤销」按钮恢复文本。",
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (ret != QMessageBox::Yes) return;
+    }
+
     delete m_graph;
     m_graph = new Graph();
     m_graphWidget->setGraph(m_graph);
     m_textEdit->clear();
-    updateStatus("已清空");
+    updateStatus("已清空（可按 Ctrl+Z 撤销文本清除）");
+}
+
+void MainWindow::onUndo()
+{
+    m_textEdit->undo();
+}
+
+void MainWindow::onRedo()
+{
+    m_textEdit->redo();
 }
 
 void MainWindow::onResetLayout()

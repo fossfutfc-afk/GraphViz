@@ -28,6 +28,8 @@ private slots:
     void onClearHighlights();
     void onClearAll();
     void onResetLayout();
+    void onUndo();
+    void onRedo();
 
 private:
     QWidget* createInputPanel();

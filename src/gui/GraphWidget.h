@@ -11,6 +11,22 @@
 
 class Graph;
 
+/// 视图坐标变换（数据坐标 ↔ 屏幕坐标）
+struct ViewTransform {
+    double scaleX = 1.0, scaleY = 1.0, offsetX = 0.0, offsetY = 0.0;
+    QPointF map(double x, double y) const {
+        return QPointF(offsetX + x * scaleX, offsetY + y * scaleY);
+    }
+    QPointF map(const QPointF& p) const {
+        return QPointF(offsetX + p.x() * scaleX, offsetY + p.y() * scaleY);
+    }
+    QPointF invMap(const QPointF& screen) const {
+        return QPointF((screen.x() - offsetX) / scaleX,
+                       (screen.y() - offsetY) / scaleY);
+    }
+    bool isValid() const { return scaleX > 0.0 && scaleY > 0.0; }
+};
+
 /// 高亮类型枚举
 enum class HighlightType {
     None,
@@ -84,8 +100,9 @@ private:
 
     // ── 拖动状态 ──
     bool m_dragging = false;
-    QString m_dragNode;       // 正在拖动的顶点名
-    QPointF m_dragOffset;     // 鼠标相对于顶点中心的偏移（屏幕坐标）
+    QString m_dragNode;         // 正在拖动的顶点名
+    QPointF m_dragOffset;       // 鼠标相对于顶点中心的偏移（屏幕坐标）
+    ViewTransform m_dragTransform;  // 拖动开始时的固定坐标变换（避免灵敏度漂移）
 };
 
 #endif // GRAPHWIDGET_H
