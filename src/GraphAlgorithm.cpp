@@ -34,7 +34,20 @@ ComponentResult GraphAlgorithm::connectedComponents(const Graph& graph)
 {
     ComponentResult result;
     auto allNodes = graph.getAllVertexNames();
+    if (allNodes.empty()) return result;
+
     std::unordered_set<std::string> visited;
+
+    // 有向图：预建反向邻接表（避免 O(V³) 扫描）
+    std::unordered_map<std::string, std::vector<std::string>> revAdj;
+    if (graph.hasDirectedEdges()) {
+        for (const auto& name : allNodes) {
+            for (const auto& e : graph.getAdjacent(name)) {
+                if (e.directed)
+                    revAdj[e.to].push_back(name);
+            }
+        }
+    }
 
     for (const auto& start : allNodes) {
         if (visited.count(start)) continue;
@@ -48,9 +61,8 @@ ComponentResult GraphAlgorithm::connectedComponents(const Graph& graph)
             std::string u = q.front(); q.pop();
             comp.push_back(u);
 
+            // 出边方向
             for (const auto& e : graph.getAdjacent(u)) {
-                // 有向图只沿出边方向遍历
-                // 无向图邻接表已包含双向，直接遍历即可
                 std::string v = e.to;
                 if (!visited.count(v)) {
                     visited.insert(v);
@@ -58,14 +70,14 @@ ComponentResult GraphAlgorithm::connectedComponents(const Graph& graph)
                 }
             }
 
-            // 有向图：还需要沿入边方向遍历
+            // 有向图：沿入边方向遍历（即 weakly connected 分量）
             if (graph.hasDirectedEdges()) {
-                for (const auto& vname : graph.getAllVertexNames()) {
-                    if (vname == u) continue;
-                    for (const auto& e2 : graph.getAdjacent(vname)) {
-                        if (e2.directed && e2.to == u && !visited.count(vname)) {
-                            visited.insert(vname);
-                            q.push(vname);
+                auto it = revAdj.find(u);
+                if (it != revAdj.end()) {
+                    for (const auto& pred : it->second) {
+                        if (!visited.count(pred)) {
+                            visited.insert(pred);
+                            q.push(pred);
                         }
                     }
                 }

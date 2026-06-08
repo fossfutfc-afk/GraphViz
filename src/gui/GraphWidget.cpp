@@ -50,6 +50,44 @@ struct ViewTransform {
     }
 };
 
+/// 根据位置数据计算视图变换，处理单顶点/零范围退化情况
+static ViewTransform computeViewTransform(const QHash<QString, QPointF>& positions,
+                                           double widgetW, double widgetH)
+{
+    double minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+    for (auto it = positions.begin(); it != positions.end(); ++it) {
+        minX = std::min(minX, it->x());
+        minY = std::min(minY, it->y());
+        maxX = std::max(maxX, it->x());
+        maxY = std::max(maxY, it->y());
+    }
+    double dataW = maxX - minX;
+    double dataH = maxY - minY;
+
+    ViewTransform tr;
+    const double availW = widgetW  - 2.0 * kPADDING;
+    const double availH = widgetH - 2.0 * kPADDING;
+
+    if (dataW < 1.0 && dataH < 1.0) {
+        // 退化情况：单顶点或所有顶点同位置 — 居中显示
+        tr.scaleX = 1.0;
+        tr.scaleY = 1.0;
+        tr.offsetX = widgetW / 2.0 - minX;
+        tr.offsetY = widgetH / 2.0 - minY;
+    } else {
+        double sw = (dataW < 1.0) ? 1.0 : availW / dataW;
+        double sh = (dataH < 1.0) ? 1.0 : availH / dataH;
+        double s = std::min(sw, sh);
+        tr.scaleX = s;
+        tr.scaleY = s;
+
+        // 居中
+        tr.offsetX = kPADDING + (availW - dataW * s) / 2.0 - minX * s;
+        tr.offsetY = kPADDING + (availH - dataH * s) / 2.0 - minY * s;
+    }
+    return tr;
+}
+
 // ── 辅助：标准化边键 ──
 static inline QPair<QString, QString> makeKey(const QString& a, const QString& b) {
     return (a <= b) ? qMakePair(a, b) : qMakePair(b, a);
@@ -208,25 +246,7 @@ QString GraphWidget::hitTest(const QPointF& screenPos) const
 {
     if (!m_graph || m_positions.empty()) return {};
 
-    // 计算视图变换
-    double minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
-    for (auto it = m_positions.begin(); it != m_positions.end(); ++it) {
-        minX = std::min(minX, it->x());
-        minY = std::min(minY, it->y());
-        maxX = std::max(maxX, it->x());
-        maxY = std::max(maxY, it->y());
-    }
-    double dataW = maxX - minX;
-    double dataH = maxY - minY;
-    if (dataW < 1.0 || dataH < 1.0) return {};
-
-    double availW = width()  - 2.0 * kPADDING;
-    double availH = height() - 2.0 * kPADDING;
-    ViewTransform tr;
-    tr.scaleX  = availW / dataW;
-    tr.scaleY  = availH / dataH;
-    tr.offsetX = kPADDING - minX * tr.scaleX;
-    tr.offsetY = kPADDING - minY * tr.scaleY;
+    ViewTransform tr = computeViewTransform(m_positions, width(), height());
 
     for (auto it = m_positions.begin(); it != m_positions.end(); ++it) {
         QPointF center = tr.map(it->x(), it->y());
@@ -248,30 +268,10 @@ void GraphWidget::mousePressEvent(QMouseEvent *event)
             m_dragging = true;
             m_dragNode = node;
 
-            // 计算偏移：屏幕坐标下，鼠标位置 - 顶点中心
-            // 需要反向计算顶点中心的屏幕坐标
-            double minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
-            for (auto it = m_positions.begin(); it != m_positions.end(); ++it) {
-                minX = std::min(minX, it->x());
-                minY = std::min(minY, it->y());
-                maxX = std::max(maxX, it->x());
-                maxY = std::max(maxY, it->y());
-            }
-            double dataW = maxX - minX;
-            double dataH = maxY - minY;
-            if (dataW >= 1.0 && dataH >= 1.0) {
-                double availW = width()  - 2.0 * kPADDING;
-                double availH = height() - 2.0 * kPADDING;
-                ViewTransform tr;
-                tr.scaleX  = availW / dataW;
-                tr.scaleY  = availH / dataH;
-                tr.offsetX = kPADDING - minX * tr.scaleX;
-                tr.offsetY = kPADDING - minY * tr.scaleY;
-
-                QPointF dataPos = m_positions[m_dragNode];
-                QPointF screenCenter = tr.map(dataPos);
-                m_dragOffset = event->position() - screenCenter;
-            }
+            ViewTransform tr = computeViewTransform(m_positions, width(), height());
+            QPointF dataPos = m_positions[m_dragNode];
+            QPointF screenCenter = tr.map(dataPos);
+            m_dragOffset = event->position() - screenCenter;
             setCursor(Qt::ClosedHandCursor);
         }
     }
@@ -281,29 +281,10 @@ void GraphWidget::mousePressEvent(QMouseEvent *event)
 void GraphWidget::mouseMoveEvent(QMouseEvent *event)
 {
     if (m_dragging && !m_dragNode.isEmpty()) {
-        // 反向计算新的数据坐标
-        double minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
-        for (auto it = m_positions.begin(); it != m_positions.end(); ++it) {
-            minX = std::min(minX, it->x());
-            minY = std::min(minY, it->y());
-            maxX = std::max(maxX, it->x());
-            maxY = std::max(maxY, it->y());
-        }
-        double dataW = maxX - minX;
-        double dataH = maxY - minY;
-        if (dataW >= 1.0 && dataH >= 1.0) {
-            double availW = width()  - 2.0 * kPADDING;
-            double availH = height() - 2.0 * kPADDING;
-            ViewTransform tr;
-            tr.scaleX  = availW / dataW;
-            tr.scaleY  = availH / dataH;
-            tr.offsetX = kPADDING - minX * tr.scaleX;
-            tr.offsetY = kPADDING - minY * tr.scaleY;
-
-            QPointF newScreenPos = event->position() - m_dragOffset;
-            QPointF newDataPos = tr.invMap(newScreenPos);
-            m_positions[m_dragNode] = newDataPos;
-        }
+        ViewTransform tr = computeViewTransform(m_positions, width(), height());
+        QPointF newScreenPos = event->position() - m_dragOffset;
+        QPointF newDataPos = tr.invMap(newScreenPos);
+        m_positions[m_dragNode] = newDataPos;
         update();
         return;
     }
@@ -342,25 +323,8 @@ void GraphWidget::paintEvent(QPaintEvent* /*event*/)
 
     if (!m_graph || m_positions.empty()) return;
 
-    // ── 坐标范围 ──
-    double minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
-    for (auto it = m_positions.begin(); it != m_positions.end(); ++it) {
-        minX = std::min(minX, it->x());
-        minY = std::min(minY, it->y());
-        maxX = std::max(maxX, it->x());
-        maxY = std::max(maxY, it->y());
-    }
-    double dataW = maxX - minX;
-    double dataH = maxY - minY;
-    if (dataW < 1.0 || dataH < 1.0) return;
-
-    double availW = width()  - 2.0 * kPADDING;
-    double availH = height() - 2.0 * kPADDING;
-    ViewTransform tr;
-    tr.scaleX  = availW / dataW;
-    tr.scaleY  = availH / dataH;
-    tr.offsetX = kPADDING - minX * tr.scaleX;
-    tr.offsetY = kPADDING - minY * tr.scaleY;
+    // ── 坐标变换 ──
+    ViewTransform tr = computeViewTransform(m_positions, width(), height());
 
     // ── 收集所有边（去重） ──
     std::vector<Edge> allEdges;

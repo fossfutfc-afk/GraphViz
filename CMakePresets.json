@@ -38,6 +38,13 @@
     {
       "name": "gui",
       "configurePreset": "gui"
+    },
+    {
+      "name": "release",
+      "displayName": "Release (GUI)",
+      "description": "Optimized release build",
+      "configurePreset": "gui",
+      "configuration": "Release"
     }
   ]
 }

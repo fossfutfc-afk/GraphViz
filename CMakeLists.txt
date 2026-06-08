@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(GraphViz)
+project(GraphViz VERSION 1.0.0 LANGUAGES CXX)
 
 # C++17
 set(CMAKE_CXX_STANDARD 17)
@@ -47,6 +47,8 @@ if(BUILD_GUI)
     target_include_directories(GraphViz PRIVATE src/gui)
     target_link_libraries(GraphViz PRIVATE Qt6::Widgets)
     target_compile_definitions(GraphViz PRIVATE BUILD_GUI=1)
+    target_compile_definitions(GraphViz PRIVATE
+        GRAPHVIZ_VERSION="${PROJECT_VERSION}")
 
     if(WIN32)
         add_custom_command(TARGET GraphViz POST_BUILD
