@@ -1,0 +1,16 @@
+build/
+build-gui/
+build-release/
+build-gui-release/
+bin/
+dist/
+*.exe
+*.o
+*.obj
+*.moc
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+.vscode/
+.idea/
+.claude/

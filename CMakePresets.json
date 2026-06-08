@@ -1,0 +1,43 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 19,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "CLI Only",
+      "description": "Build CLI version (no Qt dependency)",
+      "generator": "MinGW Makefiles",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "BUILD_GUI": "OFF"
+      }
+    },
+    {
+      "name": "gui",
+      "displayName": "GUI (Qt 6)",
+      "description": "Build with Qt6 GUI support",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build-gui",
+      "cacheVariables": {
+        "BUILD_GUI": "ON",
+        "CMAKE_PREFIX_PATH": "D:/Work/Development/Runtimes/Qt/6.11.1/mingw_64",
+        "CMAKE_C_COMPILER": "D:/Work/Development/Runtimes/Qt/Tools/mingw1310_64/bin/gcc.exe",
+        "CMAKE_CXX_COMPILER": "D:/Work/Development/Runtimes/Qt/Tools/mingw1310_64/bin/g++.exe"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default"
+    },
+    {
+      "name": "gui",
+      "configurePreset": "gui"
+    }
+  ]
+}
