@@ -16,6 +16,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSplitter>
+#include <QStatusBar>
 #include <QVBoxLayout>
 #include <fstream>
 #include <sstream>
@@ -51,10 +52,10 @@ MainWindow::MainWindow(QWidget *parent)
 
     // ── 菜单栏 ──
     QMenu *fileMenu = menuBar()->addMenu("文件(&F)");
-    fileMenu->addAction("打开(&O)...", this, &MainWindow::onOpenFile, QKeySequence::Open);
-    fileMenu->addAction("保存(&S)...", this, &MainWindow::onSaveFile, QKeySequence::Save);
+    fileMenu->addAction("打开(&O)...", QKeySequence::Open, this, &MainWindow::onOpenFile);
+    fileMenu->addAction("保存(&S)...", QKeySequence::Save, this, &MainWindow::onSaveFile);
     fileMenu->addSeparator();
-    fileMenu->addAction("退出(&Q)", this, &QWidget::close, QKeySequence::Quit);
+    fileMenu->addAction("退出(&Q)", QKeySequence::Quit, this, &QWidget::close);
 
     QMenu *viewMenu = menuBar()->addMenu("视图(&V)");
     viewMenu->addAction("重置布局(&R)", this, &MainWindow::onResetLayout);
