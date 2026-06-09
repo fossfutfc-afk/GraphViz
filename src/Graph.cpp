@@ -73,16 +73,20 @@ bool Graph::addEdge(const std::string& from, const std::string& to,
 
     edge_keys_.insert(key);
 
+    bool isSelfLoop = (from == to);
+
     if (directed) {
         has_directed_ = true;
         adj_[from].push_back(e);
     } else {
-        // 无向边：两端都添加
+        // 无向边：两端都添加（自环仅添加一次）
         adj_[from].push_back(e);
-        Edge rev = e;
-        rev.from = to;
-        rev.to = from;
-        adj_[to].push_back(rev);
+        if (!isSelfLoop) {
+            Edge rev = e;
+            rev.from = to;
+            rev.to = from;
+            adj_[to].push_back(rev);
+        }
     }
 
     return true;

@@ -4,6 +4,8 @@
 #include "GraphParser.h"
 #include "GraphAlgorithm.h"
 
+#include <QEvent>
+#include <QKeyEvent>
 #include <QApplication>
 #include <QComboBox>
 #include <QFileDialog>
@@ -16,6 +18,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSplitter>
+#include <QTextBlock>
 #include <QStatusBar>
 #include <QVBoxLayout>
 #include <fstream>
@@ -118,6 +121,7 @@ QWidget* MainWindow::createInputPanel()
 
     m_textEdit = new QPlainTextEdit(this);
     m_textEdit->setFont(QFont("Consolas", 10));
+    m_textEdit->installEventFilter(this);
     m_textEdit->setPlaceholderText(
         "输入边数据，每行一条：\n"
         "  a-->b    有向无权边\n"
@@ -464,7 +468,7 @@ void MainWindow::onClearAll()
         auto ret = QMessageBox::question(
             this, "确认清除",
             "确定要清除全部内容吗？\n\n"
-            "提示：清除后可通过 Ctrl+Z 或「↩ 撤销」按钮恢复文本。",
+            "提示：可使用 Ctrl+Z /「↩ 撤销」恢复误清文本。",
             QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
         if (ret != QMessageBox::Yes) return;
     }
@@ -498,4 +502,84 @@ void MainWindow::onResetLayout()
 void MainWindow::updateStatus(const QString& msg)
 {
     m_statusLabel->setText(msg);
+}
+
+bool MainWindow::eventFilter(QObject *obj, QEvent *event)
+{
+    if (obj == m_textEdit && event->type() == QEvent::KeyPress) {
+        auto *keyEvent = static_cast<QKeyEvent*>(event);
+        if (keyEvent->key() == Qt::Key_Tab &&
+            (keyEvent->modifiers() & Qt::ShiftModifier)) {
+            // Shift+Tab: un-indent selected lines or current line
+            QTextCursor cursor = m_textEdit->textCursor();
+            int start = cursor.selectionStart();
+            int end   = cursor.selectionEnd();
+            bool hasSelection = cursor.hasSelection();
+
+            cursor.beginEditBlock();
+
+            if (hasSelection) {
+                // 获取选中区域的起始行和结束行
+                QTextCursor selCursor = cursor;
+                selCursor.setPosition(start);
+                int startBlock = selCursor.block().blockNumber();
+                selCursor.setPosition(end);
+                int endBlock = selCursor.block().blockNumber();
+                if (selCursor.atBlockStart() && endBlock > startBlock)
+                    --endBlock;
+
+                for (int bn = startBlock; bn <= endBlock; ++bn) {
+                    QTextBlock block = m_textEdit->document()->findBlockByNumber(bn);
+                    QString text = block.text();
+                    // 移除前导空白：最多4个空格或1个tab
+                    int removeCount = 0;
+                    if (!text.isEmpty()) {
+                        if (text[0] == '\t') {
+                            removeCount = 1;
+                        } else {
+                            int maxSpaces = 4;
+                            for (int i = 0; i < text.size() && i < maxSpaces; ++i) {
+                                if (text[i] == ' ') ++removeCount;
+                                else break;
+                            }
+                        }
+                    }
+                    if (removeCount > 0) {
+                        QTextCursor blockCursor(block);
+                        blockCursor.movePosition(QTextCursor::StartOfBlock);
+                        blockCursor.movePosition(QTextCursor::Right,
+                            QTextCursor::KeepAnchor, removeCount);
+                        blockCursor.removeSelectedText();
+                    }
+                }
+            } else {
+                // 无选区：对当前行 un-indent
+                QTextBlock block = cursor.block();
+                QString text = block.text();
+                int removeCount = 0;
+                if (!text.isEmpty()) {
+                    if (text[0] == '\t') {
+                        removeCount = 1;
+                    } else {
+                        int maxSpaces = 4;
+                        for (int i = 0; i < text.size() && i < maxSpaces; ++i) {
+                            if (text[i] == ' ') ++removeCount;
+                            else break;
+                        }
+                    }
+                }
+                if (removeCount > 0) {
+                    QTextCursor blockCursor(block);
+                    blockCursor.movePosition(QTextCursor::StartOfBlock);
+                    blockCursor.movePosition(QTextCursor::Right,
+                        QTextCursor::KeepAnchor, removeCount);
+                    blockCursor.removeSelectedText();
+                }
+            }
+
+            cursor.endEditBlock();
+            return true;
+        }
+    }
+    return QMainWindow::eventFilter(obj, event);
 }

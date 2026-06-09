@@ -2,16 +2,22 @@
 #include "ForceLayout.h"
 #include "Graph.h"
 
+#define _USE_MATH_DEFINES
+#include <cmath>
+
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPaintEvent>
 #include <QPen>
-#include <cmath>
+
+#include <map>
 
 // ── 绘制常量 ──
 static constexpr double kNODE_RADIUS    = 20.0;
 static constexpr double kARROW_SIZE     = 10.0;
+static constexpr double kLOOP_RADIUS    = 16.0;   // 自环弧半径
+static constexpr double kOVERLAP_OFFSET = 7.0;    // 重叠边偏移量
 static constexpr double kPADDING        = 50.0;
 static constexpr int    kFONT_SIZE      = 9;
 static constexpr int    kWEIGHT_FONT_SIZE = 8;
@@ -75,33 +81,6 @@ static ViewTransform computeViewTransform(const QHash<QString, QPointF>& positio
 // ── 辅助：标准化边键 ──
 static inline QPair<QString, QString> makeKey(const QString& a, const QString& b) {
     return (a <= b) ? qMakePair(a, b) : qMakePair(b, a);
-}
-
-// ── 辅助：绘制箭头 ──
-static void drawArrow(QPainter& painter, const QPointF& from,
-                       const QPointF& to, double nodeRadius)
-{
-    // 计算从圆心到圆心的方向
-    QPointF dir = to - from;
-    double len = std::hypot(dir.x(), dir.y());
-    if (len < 1.0) return;
-    QPointF unit = dir / len;
-
-    // 终点圆边界上的点
-    QPointF endPt = to - unit * nodeRadius;
-
-    // 箭头三角形
-    QPointF perp(-unit.y(), unit.x());
-    QPointF p1 = endPt;
-    QPointF p2 = endPt - unit * kARROW_SIZE + perp * (kARROW_SIZE * 0.5);
-    QPointF p3 = endPt - unit * kARROW_SIZE - perp * (kARROW_SIZE * 0.5);
-
-    QPainterPath arrowPath;
-    arrowPath.moveTo(p1);
-    arrowPath.lineTo(p2);
-    arrowPath.lineTo(p3);
-    arrowPath.closeSubpath();
-    painter.drawPath(arrowPath);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -310,15 +289,24 @@ void GraphWidget::paintEvent(QPaintEvent* /*event*/)
     // ── 坐标变换 ──
     ViewTransform tr = computeViewTransform(m_positions, width(), height());
 
-    // ── 收集所有边（去重） ──
+    // ── 收集所有边（去重）并按端点对分组 ──
     std::vector<Edge> allEdges;
+    // 端点组 key: "min(from,to)|max(from,to)"（自环用 "name|name"）
+    std::map<QString, std::vector<size_t>> edgeGroups;  // key → 边索引列表
     std::unordered_set<std::string> seen;
     for (const auto& name : m_graph->getAllVertexNames()) {
         for (const auto& e : m_graph->getAdjacent(name)) {
             std::string key = e.makeKey();
             if (seen.count(key)) continue;
             seen.insert(key);
+            size_t idx = allEdges.size();
             allEdges.push_back(e);
+
+            auto qfrom = QString::fromStdString(e.from);
+            auto qto   = QString::fromStdString(e.to);
+            QString groupKey = (qfrom <= qto) ? (qfrom + "|" + qto)
+                                              : (qto + "|" + qfrom);
+            edgeGroups[groupKey].push_back(idx);
         }
     }
 
@@ -340,7 +328,6 @@ void GraphWidget::paintEvent(QPaintEvent* /*event*/)
             }
         }
 
-        // 连通分量：用分量颜色
         if (m_highlightType == HighlightType::Component) {
             QColor compColor = m_componentColors.value(from, Qt::black);
             if (compColor == Qt::black)
@@ -352,7 +339,8 @@ void GraphWidget::paintEvent(QPaintEvent* /*event*/)
     };
 
     // ── 1. 绘制边 ──
-    for (const auto& e : allEdges) {
+    for (size_t ei = 0; ei < allEdges.size(); ++ei) {
+        const auto& e = allEdges[ei];
         auto from = QString::fromStdString(e.from);
         auto to   = QString::fromStdString(e.to);
         auto [color, width] = edgeStyle(from, to);
@@ -363,30 +351,115 @@ void GraphWidget::paintEvent(QPaintEvent* /*event*/)
         QPointF p1 = tr.map(m_positions.value(from));
         QPointF p2 = tr.map(m_positions.value(to));
 
-        // 计算从圆心出发的线段端点
+        bool isSelfLoop = (e.from == e.to);
+
+        // ── 自环：绘制弧线 ──
+        if (isSelfLoop) {
+            // 从顶点顶部出发的弧线
+            QPointF top(p1.x(), p1.y() - kNODE_RADIUS);
+            QRectF loopRect(top.x() - kLOOP_RADIUS,
+                           top.y() - kLOOP_RADIUS * 1.5,
+                           kLOOP_RADIUS * 2, kLOOP_RADIUS * 2);
+
+            // 起点角度：左上 (180°), 终点角度：右上 (0°), 弧度向上
+            int startAngle = 200 * 16;  // 200° (以度*16为单位，即左下方向)
+            int spanAngle  = -220 * 16; // 逆时针220°到达右上
+
+            QPainterPath loopPath;
+            loopPath.arcMoveTo(loopRect, startAngle / 16.0);
+            loopPath.arcTo(loopRect, startAngle / 16.0, spanAngle / 16.0);
+            painter.drawPath(loopPath);
+
+            // 有向自环箭头（弧线终点处）
+            if (e.directed) {
+                QPointF endPt = loopPath.currentPosition();
+                // 计算弧线在终点的切线方向（近似）
+                double angleRad = (startAngle + spanAngle) * M_PI / 180.0 / 16.0;
+                QPointF unit(-std::sin(angleRad), std::cos(angleRad));
+                QPointF p1Arrow = endPt;
+                QPointF p2Arrow = endPt - unit * kARROW_SIZE + QPointF(-unit.y(), unit.x()) * (kARROW_SIZE * 0.5);
+                QPointF p3Arrow = endPt - unit * kARROW_SIZE - QPointF(-unit.y(), unit.x()) * (kARROW_SIZE * 0.5);
+
+                QPainterPath arrowPath;
+                arrowPath.moveTo(p1Arrow);
+                arrowPath.lineTo(p2Arrow);
+                arrowPath.lineTo(p3Arrow);
+                arrowPath.closeSubpath();
+                painter.setBrush(color);
+                painter.drawPath(arrowPath);
+                painter.setBrush(Qt::NoBrush);
+            }
+
+            // 权重标签（放在弧上方）
+            if (e.weight != 1.0) {
+                QPointF labelPos(loopRect.center().x(), loopRect.top() - 6);
+                QFont wfont = painter.font();
+                wfont.setPointSize(kWEIGHT_FONT_SIZE);
+                painter.setFont(wfont);
+                painter.setPen(QPen(Qt::darkGray));
+                QString weightStr = (e.weight == static_cast<int>(e.weight))
+                    ? QString::number(static_cast<int>(e.weight))
+                    : QString::number(e.weight, 'f', 2);
+                QFontMetrics fm(wfont);
+                QRectF textRect = fm.boundingRect(weightStr);
+                textRect.moveCenter(labelPos);
+                painter.fillRect(textRect.adjusted(-2, -1, 2, 1), QColor(255, 255, 255, 200));
+                painter.drawText(textRect, Qt::AlignCenter, weightStr);
+            }
+            continue;
+        }
+
+        // ── 计算重叠偏移 ──
+        QString groupKey = (from <= to) ? (from + "|" + to) : (to + "|" + from);
+        double offset = 0.0;
+        auto& group = edgeGroups[groupKey];
+        if (group.size() > 1) {
+            // 找出当前边在组内的索引
+            int posInGroup = -1;
+            for (size_t gi = 0; gi < group.size(); ++gi) {
+                if (group[gi] == ei) { posInGroup = static_cast<int>(gi); break; }
+            }
+            if (posInGroup >= 0) {
+                double step = kOVERLAP_OFFSET;
+                double center = (group.size() - 1) * step / 2.0;
+                offset = posInGroup * step - center;
+            }
+        }
+
+        // ── 普通边（非自环）绘制 ──
         QPointF dir = p2 - p1;
         double len = std::hypot(dir.x(), dir.y());
         if (len < 1.0) continue;
         QPointF unit = dir / len;
+        QPointF perp(-unit.y(), unit.x());
 
-        QPointF startPt = p1 + unit * kNODE_RADIUS;
-        QPointF endPt   = p2 - unit * (e.directed ? kNODE_RADIUS + kARROW_SIZE : kNODE_RADIUS);
+        QPointF startPt = p1 + unit * kNODE_RADIUS + perp * offset;
+        QPointF endPt   = p2 - unit * (e.directed ? kNODE_RADIUS + kARROW_SIZE : kNODE_RADIUS) + perp * offset;
 
         painter.drawLine(startPt, endPt);
 
-        // 有向边：画箭头
+        // 有向边：画箭头（偏移后）
         if (e.directed) {
+            // 箭头基点在 p2 圆边界（计入偏移）
+            QPointF arrowBase = p2 - unit * kNODE_RADIUS + perp * offset;
+            QPointF p1Arrow = arrowBase;
+            QPointF p2Arrow = arrowBase - unit * kARROW_SIZE + perp * (kARROW_SIZE * 0.5);
+            QPointF p3Arrow = arrowBase - unit * kARROW_SIZE - perp * (kARROW_SIZE * 0.5);
+
+            QPainterPath arrowPath;
+            arrowPath.moveTo(p1Arrow);
+            arrowPath.lineTo(p2Arrow);
+            arrowPath.lineTo(p3Arrow);
+            arrowPath.closeSubpath();
             painter.setBrush(color);
-            drawArrow(painter, p1, p2, kNODE_RADIUS);
+            painter.drawPath(arrowPath);
             painter.setBrush(Qt::NoBrush);
         }
 
-        // 权重标签
+        // 权重标签（偏移后）
         if (e.weight != 1.0) {
             QPointF mid = (p1 + p2) / 2.0;
-            // 偏移垂直于边的方向
-            QPointF perp(-unit.y(), unit.x());
-            QPointF labelPos = mid + perp * 12.0;
+            QPointF labelPos = mid + perp * (12.0 + offset);
 
             QFont wfont = painter.font();
             wfont.setPointSize(kWEIGHT_FONT_SIZE);
@@ -399,7 +472,6 @@ void GraphWidget::paintEvent(QPaintEvent* /*event*/)
             else
                 weightStr = QString::number(e.weight, 'f', 2);
 
-            // 白色背景让文字更可读
             QFontMetrics fm(wfont);
             QRectF textRect = fm.boundingRect(weightStr);
             textRect.moveCenter(labelPos);

@@ -19,6 +19,7 @@ public:
 
 protected:
     void showEvent(QShowEvent *event) override;
+    bool eventFilter(QObject *obj, QEvent *event) override;
 
 private slots:
     void onOpenFile();

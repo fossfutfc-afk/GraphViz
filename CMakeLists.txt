@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(GraphViz VERSION 1.0.1 LANGUAGES CXX)
+project(GraphViz VERSION 1.0.2 LANGUAGES CXX)
 
 # C++17
 set(CMAKE_CXX_STANDARD 17)
