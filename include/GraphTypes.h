@@ -15,9 +15,10 @@ struct Edge {
     std::string to;
     double weight = 1.0;
     bool directed = false;
+    int id = 0;                // 唯一标识（平行边用）
+    bool explicit_weight = false;  // 用户显式提供了权重
 
-    /// 生成去重用标准化键
-    /// 无向边: min|max ; 有向边: from|to
+    /// 生成端点标准化键（不含 id）
     std::string makeKey() const;
 };
 

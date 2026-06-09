@@ -24,26 +24,21 @@
 
 // 示例图数据
 static const char* SAMPLE_GRAPH =
-    "# GraphViz 示例图 — 包含有向边、无向边、带权边\n"
-    "# 无向无权边\n"
+    "# === GraphViz 示例图 ===\n"
+    "# 混合有向/无向/带权边\n"
+    "\n"
     "A---B\n"
     "A---C\n"
     "B---D\n"
     "C---D\n"
-    "D---F\n"
-    "E---F\n"
-    "A---H\n"
-    "# 无向带权边\n"
     "B-3--E\n"
-    "C-2--E\n"
-    "# 有向无权边\n"
+    "C-2--F\n"
+    "D---E\n"
+    "E---F\n"
     "G-->H\n"
     "H-->I\n"
-    "G-->I\n"
-    "J-->G\n"
-    "# 有向带权边\n"
-    "I-5->J\n"
-    "D-4->G\n";
+    "I-->G\n"
+    "A-->G\n";
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)

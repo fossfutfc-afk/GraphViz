@@ -289,26 +289,25 @@ void GraphWidget::paintEvent(QPaintEvent* /*event*/)
     // ── 坐标变换 ──
     ViewTransform tr = computeViewTransform(m_positions, width(), height());
 
-    // ── 收集所有边（去重）并按端点对分组 ──
-    std::vector<Edge> allEdges;
-    // 端点组 key: "min(from,to)|max(from,to)"（自环用 "name|name"）
+    // ── 收集所有边（按 id 去重，保留平行边）并按端点对分组 ──
+    auto allEdges = m_graph->getAllEdges();
     std::map<QString, std::vector<size_t>> edgeGroups;  // key → 边索引列表
-    std::unordered_set<std::string> seen;
-    for (const auto& name : m_graph->getAllVertexNames()) {
-        for (const auto& e : m_graph->getAdjacent(name)) {
-            std::string key = e.makeKey();
-            if (seen.count(key)) continue;
-            seen.insert(key);
-            size_t idx = allEdges.size();
-            allEdges.push_back(e);
+    std::unordered_set<int> seenIds;
+    std::vector<Edge> uniqueEdges;
+    for (const auto& e : allEdges) {
+        if (seenIds.count(e.id)) continue;
+        seenIds.insert(e.id);
+        size_t idx = uniqueEdges.size();
+        uniqueEdges.push_back(e);
 
-            auto qfrom = QString::fromStdString(e.from);
-            auto qto   = QString::fromStdString(e.to);
-            QString groupKey = (qfrom <= qto) ? (qfrom + "|" + qto)
-                                              : (qto + "|" + qfrom);
-            edgeGroups[groupKey].push_back(idx);
-        }
+        auto qfrom = QString::fromStdString(e.from);
+        auto qto   = QString::fromStdString(e.to);
+        QString groupKey = (qfrom <= qto) ? (qfrom + "|" + qto)
+                                          : (qto + "|" + qfrom);
+        edgeGroups[groupKey].push_back(idx);
     }
+    // 替换为去重后集合
+    allEdges = std::move(uniqueEdges);
 
     // ── 辅助：获取边颜色和线宽 ──
     auto edgeStyle = [&](const QString& from, const QString& to)
@@ -391,7 +390,7 @@ void GraphWidget::paintEvent(QPaintEvent* /*event*/)
             }
 
             // 权重标签（放在弧上方）
-            if (e.weight != 1.0) {
+            if (m_graph->hasExplicitWeight()) {
                 QPointF labelPos(loopRect.center().x(), loopRect.top() - 6);
                 QFont wfont = painter.font();
                 wfont.setPointSize(kWEIGHT_FONT_SIZE);
@@ -409,42 +408,46 @@ void GraphWidget::paintEvent(QPaintEvent* /*event*/)
             continue;
         }
 
-        // ── 计算重叠偏移 ──
+        // ── 计算重叠偏移和组内位置 ──
         QString groupKey = (from <= to) ? (from + "|" + to) : (to + "|" + from);
         double offset = 0.0;
         auto& group = edgeGroups[groupKey];
+        int posInGroup = 0;
         if (group.size() > 1) {
-            // 找出当前边在组内的索引
-            int posInGroup = -1;
             for (size_t gi = 0; gi < group.size(); ++gi) {
                 if (group[gi] == ei) { posInGroup = static_cast<int>(gi); break; }
             }
-            if (posInGroup >= 0) {
-                double step = kOVERLAP_OFFSET;
-                double center = (group.size() - 1) * step / 2.0;
-                offset = posInGroup * step - center;
-            }
+            double step = kOVERLAP_OFFSET;
+            double center = (group.size() - 1) * step / 2.0;
+            offset = posInGroup * step - center;
         }
 
         // ── 普通边（非自环）绘制 ──
+        // 使用统一的垂直方向（始终从字典序较小顶点→较大顶点），
+        // 防止反向边 perp 相消导致重叠
+        QPointF canonicalFrom = tr.map(m_positions.value(from <= to ? from : to));
+        QPointF canonicalTo   = tr.map(m_positions.value(from <= to ? to : from));
+        QPointF canonicalDir = canonicalTo - canonicalFrom;
+        double canonicalLen = std::hypot(canonicalDir.x(), canonicalDir.y());
+        if (canonicalLen < 1.0) continue;
+        QPointF sharedPerp(-canonicalDir.y() / canonicalLen,
+                            canonicalDir.x() / canonicalLen);
+
         QPointF dir = p2 - p1;
         double len = std::hypot(dir.x(), dir.y());
-        if (len < 1.0) continue;
         QPointF unit = dir / len;
-        QPointF perp(-unit.y(), unit.x());
 
-        QPointF startPt = p1 + unit * kNODE_RADIUS + perp * offset;
-        QPointF endPt   = p2 - unit * (e.directed ? kNODE_RADIUS + kARROW_SIZE : kNODE_RADIUS) + perp * offset;
+        QPointF startPt = p1 + unit * kNODE_RADIUS + sharedPerp * offset;
+        QPointF endPt   = p2 - unit * (e.directed ? kNODE_RADIUS + kARROW_SIZE : kNODE_RADIUS) + sharedPerp * offset;
 
         painter.drawLine(startPt, endPt);
 
         // 有向边：画箭头（偏移后）
         if (e.directed) {
-            // 箭头基点在 p2 圆边界（计入偏移）
-            QPointF arrowBase = p2 - unit * kNODE_RADIUS + perp * offset;
+            QPointF arrowBase = p2 - unit * kNODE_RADIUS + sharedPerp * offset;
             QPointF p1Arrow = arrowBase;
-            QPointF p2Arrow = arrowBase - unit * kARROW_SIZE + perp * (kARROW_SIZE * 0.5);
-            QPointF p3Arrow = arrowBase - unit * kARROW_SIZE - perp * (kARROW_SIZE * 0.5);
+            QPointF p2Arrow = arrowBase - unit * kARROW_SIZE + sharedPerp * (kARROW_SIZE * 0.5);
+            QPointF p3Arrow = arrowBase - unit * kARROW_SIZE - sharedPerp * (kARROW_SIZE * 0.5);
 
             QPainterPath arrowPath;
             arrowPath.moveTo(p1Arrow);
@@ -456,10 +459,14 @@ void GraphWidget::paintEvent(QPaintEvent* /*event*/)
             painter.setBrush(Qt::NoBrush);
         }
 
-        // 权重标签（偏移后）
-        if (e.weight != 1.0) {
-            QPointF mid = (p1 + p2) / 2.0;
-            QPointF labelPos = mid + perp * (12.0 + offset);
+        // 权重标签 — 平行边沿统一方向分散避免重叠
+        if (m_graph->hasExplicitWeight()) {
+            double t = 0.5;
+            if (group.size() > 1 && posInGroup >= 0) {
+                t = (posInGroup + 1.0) / (group.size() + 1.0);
+            }
+            // 紧贴边显示（基础距离 3px + 偏移量）
+            QPointF labelPos = canonicalFrom + canonicalDir * t + sharedPerp * (3.0 + offset);
 
             QFont wfont = painter.font();
             wfont.setPointSize(kWEIGHT_FONT_SIZE);
