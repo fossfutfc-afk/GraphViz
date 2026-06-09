@@ -35,7 +35,7 @@ set(GUI_SOURCES
     src/gui/ForceLayout.cpp
 )
 
-add_executable(GraphViz
+add_executable(GraphViz WIN32
     src/main.cpp
     ${CORE_SOURCES}
 )
