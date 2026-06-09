@@ -5,7 +5,7 @@
 
 class Graph;
 class GraphWidget;
-class QPlainTextEdit;
+class GraphTextEdit;
 class QComboBox;
 class QLineEdit;
 class QLabel;
@@ -19,7 +19,6 @@ public:
 
 protected:
     void showEvent(QShowEvent *event) override;
-    bool eventFilter(QObject *obj, QEvent *event) override;
 
 private slots:
     void onOpenFile();
@@ -40,7 +39,7 @@ private:
 
     Graph* m_graph;
     GraphWidget* m_graphWidget;
-    QPlainTextEdit* m_textEdit;
+    GraphTextEdit* m_textEdit;
     QComboBox* m_algoCombo;
     QLineEdit* m_fromEdit;
     QLineEdit* m_toEdit;

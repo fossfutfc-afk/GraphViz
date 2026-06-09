@@ -1,8 +1,9 @@
 #include "ForceLayout.h"
 #include "Graph.h"
 
-#include <algorithm>
+#define _USE_MATH_DEFINES
 #include <cmath>
+#include <algorithm>
 #include <QRandomGenerator>
 #include <QVector>
 
@@ -17,19 +18,26 @@ QHash<QString, QPointF> ForceLayout::compute(const Graph& graph,
     const int n = static_cast<int>(vertexIds.size());
     const double area = static_cast<double>(width) * height;
     const double k = std::sqrt(area / n);           // 理想节点间距
-    const int iterations = 70;
+    const int iterations = 100;
     const double margin = 50.0;
 
-    // 1. 随机初始化坐标
-    QRandomGenerator rng(42);  // 固定种子，每次布局一致
+    // 1. 环形初始布局（顶点均匀分布，防止初始聚集导致边重合）
+    QRandomGenerator rng(42);
     QVector<QString> ids;
     ids.reserve(n);
-    for (const auto& id : vertexIds) {
-        auto qid = QString::fromStdString(id);
+    const double centerX = width / 2.0;
+    const double centerY = height / 2.0;
+    const double radius = std::min(width, height) * 0.35;  // 环形半径
+    for (int i = 0; i < n; ++i) {
+        double angle = 2.0 * M_PI * i / n;
+        // 加小幅随机抖动，避免对称网格导致力平衡停滞
+        double jitterX = (rng.bounded(1.0) - 0.5) * 20.0;
+        double jitterY = (rng.bounded(1.0) - 0.5) * 20.0;
+        auto qid = QString::fromStdString(vertexIds[i]);
         ids.append(qid);
         positions[qid] = QPointF(
-            margin + rng.bounded(width - 2.0 * margin),
-            margin + rng.bounded(height - 2.0 * margin));
+            centerX + radius * std::cos(angle) + jitterX,
+            centerY + radius * std::sin(angle) + jitterY);
     }
 
     // 2. 构建邻接表（无向边展开为双向）

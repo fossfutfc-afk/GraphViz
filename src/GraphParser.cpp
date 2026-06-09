@@ -163,6 +163,22 @@ parseOperator(const std::string& line, size_t pos) {
 
     if (opChars.empty()) return {std::string::npos, false, 1.0};
 
+    // ── 裁剪操作符末尾的右顶点数字（贪婪匹配的副作用） ──
+    // 例如 `-->001` → 操作符应为 `-->`，001 是右顶点
+    // 逆向查找真正的操作符结束位置（`>` 或末尾连续 `-`）
+    size_t effectiveEnd = opChars.size();
+    for (size_t i = opChars.size(); i > 0; --i) {
+        char c = opChars[i - 1];
+        if (c == '>' || c == '-') {
+            effectiveEnd = i;
+            break;
+        }
+    }
+    if (effectiveEnd < opChars.size()) {
+        pos -= (opChars.size() - effectiveEnd);
+        opChars.resize(effectiveEnd);
+    }
+
     // ── 分析操作符 ──
     bool directed = false;
     bool hasBidi = false;
@@ -266,36 +282,20 @@ std::string GraphParser::serialize(const Graph& graph)
         std::string fromStr = needsQuoting(e.from) ? quoteName(e.from) : e.from;
         std::string toStr   = needsQuoting(e.to)   ? quoteName(e.to)   : e.to;
 
-        if (e.from == e.to) {
-            // 自环
-            if (e.directed) {
-                if (e.weight == 1.0)
-                    oss << fromStr << "-->- " << toStr << "\n";
-                else
-                    oss << fromStr << "-" << e.weight << "->- " << toStr << "\n";
-            } else {
-                if (e.weight == 1.0)
-                    oss << fromStr << "----- " << toStr << "\n";
-                else
-                    oss << fromStr << "-" << e.weight << "-- " << toStr << "\n";
-            }
-            continue;
-        }
-
         if (e.directed) {
             if (e.weight == 1.0)
-                oss << fromStr << "--> " << toStr << "\n";
+                oss << fromStr << "-->" << toStr << "\n";
             else if (e.weight == static_cast<int>(e.weight))
-                oss << fromStr << "-" << static_cast<int>(e.weight) << "-> " << toStr << "\n";
+                oss << fromStr << "-" << static_cast<int>(e.weight) << "->" << toStr << "\n";
             else
-                oss << fromStr << "-" << e.weight << "-> " << toStr << "\n";
+                oss << fromStr << "-" << e.weight << "->" << toStr << "\n";
         } else {
             if (e.weight == 1.0)
-                oss << fromStr << "--- " << toStr << "\n";
+                oss << fromStr << "---" << toStr << "\n";
             else if (e.weight == static_cast<int>(e.weight))
-                oss << fromStr << "-" << static_cast<int>(e.weight) << "-- " << toStr << "\n";
+                oss << fromStr << "-" << static_cast<int>(e.weight) << "--" << toStr << "\n";
             else
-                oss << fromStr << "-" << e.weight << "-- " << toStr << "\n";
+                oss << fromStr << "-" << e.weight << "--" << toStr << "\n";
         }
     }
     return oss.str();

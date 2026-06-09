@@ -125,17 +125,23 @@ size_t Graph::edgeCount() const {
 size_t Graph::degree(const std::string& name) const {
     auto it = adj_.find(name);
     if (it == adj_.end()) return 0;
-    return it->second.size();
+    size_t d = 0;
+    for (const auto& e : it->second) {
+        if (e.from == e.to) d += 2;  // 自环贡献度为 2
+        else ++d;
+    }
+    return d;
 }
 
 size_t Graph::inDegree(const std::string& name) const {
-    if (!has_directed_) return 0;
     size_t count = 0;
     for (const auto& kv : adj_) {
-        if (kv.first == name) continue;
         for (const auto& e : kv.second) {
-            if (e.directed && e.to == name)
-                ++count;
+            if (e.to == name) {
+                if (e.directed) ++count;
+                else if (kv.first != name) ++count;  // 无向边（非自环）
+                else count += 2;  // 无向自环，入度=出度=2
+            }
         }
     }
     return count;

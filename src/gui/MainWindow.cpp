@@ -1,11 +1,10 @@
 #include "MainWindow.h"
 #include "GraphWidget.h"
+#include "GraphTextEdit.h"
 #include "Graph.h"
 #include "GraphParser.h"
 #include "GraphAlgorithm.h"
 
-#include <QEvent>
-#include <QKeyEvent>
 #include <QApplication>
 #include <QComboBox>
 #include <QFileDialog>
@@ -15,7 +14,6 @@
 #include <QLineEdit>
 #include <QMenuBar>
 #include <QMessageBox>
-#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSplitter>
 #include <QTextBlock>
@@ -27,24 +25,25 @@
 // 示例图数据
 static const char* SAMPLE_GRAPH =
     "# GraphViz 示例图 — 包含有向边、无向边、带权边\n"
-    "# 无向边示例\n"
+    "# 无向无权边\n"
     "A---B\n"
     "A---C\n"
     "B---D\n"
     "C---D\n"
-    "B-3--E\n"
-    "C-2--E\n"
     "D---F\n"
     "E---F\n"
-    "# 有向边示例\n"
+    "A---H\n"
+    "# 无向带权边\n"
+    "B-3--E\n"
+    "C-2--E\n"
+    "# 有向无权边\n"
     "G-->H\n"
     "H-->I\n"
     "G-->I\n"
-    "I-5->J\n"
     "J-->G\n"
-    "# 连通两组\n"
-    "D-4->G\n"
-    "A---H\n";
+    "# 有向带权边\n"
+    "I-5->J\n"
+    "D-4->G\n";
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -119,9 +118,8 @@ QWidget* MainWindow::createInputPanel()
     QLabel *label = new QLabel("图数据输入（每行一条边）:");
     layout->addWidget(label);
 
-    m_textEdit = new QPlainTextEdit(this);
+    m_textEdit = new GraphTextEdit(this);
     m_textEdit->setFont(QFont("Consolas", 10));
-    m_textEdit->installEventFilter(this);
     m_textEdit->setPlaceholderText(
         "输入边数据，每行一条：\n"
         "  a-->b    有向无权边\n"
@@ -468,7 +466,7 @@ void MainWindow::onClearAll()
         auto ret = QMessageBox::question(
             this, "确认清除",
             "确定要清除全部内容吗？\n\n"
-            "提示：可使用 Ctrl+Z /「↩ 撤销」恢复误清文本。",
+            "此操作将清空编辑区和图数据，不可撤销。",
             QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
         if (ret != QMessageBox::Yes) return;
     }
@@ -502,84 +500,4 @@ void MainWindow::onResetLayout()
 void MainWindow::updateStatus(const QString& msg)
 {
     m_statusLabel->setText(msg);
-}
-
-bool MainWindow::eventFilter(QObject *obj, QEvent *event)
-{
-    if (obj == m_textEdit && event->type() == QEvent::KeyPress) {
-        auto *keyEvent = static_cast<QKeyEvent*>(event);
-        if (keyEvent->key() == Qt::Key_Tab &&
-            (keyEvent->modifiers() & Qt::ShiftModifier)) {
-            // Shift+Tab: un-indent selected lines or current line
-            QTextCursor cursor = m_textEdit->textCursor();
-            int start = cursor.selectionStart();
-            int end   = cursor.selectionEnd();
-            bool hasSelection = cursor.hasSelection();
-
-            cursor.beginEditBlock();
-
-            if (hasSelection) {
-                // 获取选中区域的起始行和结束行
-                QTextCursor selCursor = cursor;
-                selCursor.setPosition(start);
-                int startBlock = selCursor.block().blockNumber();
-                selCursor.setPosition(end);
-                int endBlock = selCursor.block().blockNumber();
-                if (selCursor.atBlockStart() && endBlock > startBlock)
-                    --endBlock;
-
-                for (int bn = startBlock; bn <= endBlock; ++bn) {
-                    QTextBlock block = m_textEdit->document()->findBlockByNumber(bn);
-                    QString text = block.text();
-                    // 移除前导空白：最多4个空格或1个tab
-                    int removeCount = 0;
-                    if (!text.isEmpty()) {
-                        if (text[0] == '\t') {
-                            removeCount = 1;
-                        } else {
-                            int maxSpaces = 4;
-                            for (int i = 0; i < text.size() && i < maxSpaces; ++i) {
-                                if (text[i] == ' ') ++removeCount;
-                                else break;
-                            }
-                        }
-                    }
-                    if (removeCount > 0) {
-                        QTextCursor blockCursor(block);
-                        blockCursor.movePosition(QTextCursor::StartOfBlock);
-                        blockCursor.movePosition(QTextCursor::Right,
-                            QTextCursor::KeepAnchor, removeCount);
-                        blockCursor.removeSelectedText();
-                    }
-                }
-            } else {
-                // 无选区：对当前行 un-indent
-                QTextBlock block = cursor.block();
-                QString text = block.text();
-                int removeCount = 0;
-                if (!text.isEmpty()) {
-                    if (text[0] == '\t') {
-                        removeCount = 1;
-                    } else {
-                        int maxSpaces = 4;
-                        for (int i = 0; i < text.size() && i < maxSpaces; ++i) {
-                            if (text[i] == ' ') ++removeCount;
-                            else break;
-                        }
-                    }
-                }
-                if (removeCount > 0) {
-                    QTextCursor blockCursor(block);
-                    blockCursor.movePosition(QTextCursor::StartOfBlock);
-                    blockCursor.movePosition(QTextCursor::Right,
-                        QTextCursor::KeepAnchor, removeCount);
-                    blockCursor.removeSelectedText();
-                }
-            }
-
-            cursor.endEditBlock();
-            return true;
-        }
-    }
-    return QMainWindow::eventFilter(obj, event);
 }
