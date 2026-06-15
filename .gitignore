@@ -4,6 +4,7 @@ build-release/
 build-gui-release/
 bin/
 dist/
+test_data/
 *.exe
 *.o
 *.obj

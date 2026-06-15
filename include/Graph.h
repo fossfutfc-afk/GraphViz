@@ -21,6 +21,13 @@ public:
     size_t vertexCount() const;
     const Vertex& getVertex(const std::string& name) const;
 
+    /// 获取顶点显示名（若未设置则返回 internal key 本身）
+    std::string getDisplayName(const std::string& internal_key) const;
+
+    /// 通过显示名或内部 key 查找内部 key（用于 from/to 输入框）
+    /// 先精确匹配 key，再按 display_name 搜索
+    std::string resolveVertexName(const std::string& displayOrKey) const;
+
     // ── 边操作 ──
 
     /// 添加边。支持平行边（同端点同方向），每条边分配唯一 id

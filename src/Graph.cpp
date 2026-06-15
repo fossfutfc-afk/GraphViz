@@ -22,6 +22,15 @@ const Vertex& Graph::addVertex(const std::string& name) {
     Vertex v;
     v.name = name;
     v.id = next_id_++;
+
+    // 若 name 含 # 后缀，拆分为 display_name + suffix
+    size_t hashPos = name.find('#');
+    if (hashPos != std::string::npos && hashPos > 0 && hashPos + 1 < name.size()) {
+        v.display_name = name.substr(0, hashPos);
+    } else {
+        v.display_name = name;
+    }
+
     auto [ins, _] = vertices_.emplace(name, v);
     if (adj_.find(name) == adj_.end())
         adj_[name] = {};
@@ -50,6 +59,25 @@ const Vertex& Graph::getVertex(const std::string& name) const {
     if (it != vertices_.end())
         return it->second;
     return dummy;
+}
+
+std::string Graph::getDisplayName(const std::string& internal_key) const {
+    auto it = vertices_.find(internal_key);
+    if (it != vertices_.end() && !it->second.display_name.empty())
+        return it->second.display_name;
+    return internal_key;
+}
+
+std::string Graph::resolveVertexName(const std::string& displayOrKey) const {
+    // 精确匹配 internal key
+    if (vertices_.count(displayOrKey))
+        return displayOrKey;
+    // 按 display_name 搜索
+    for (const auto& [key, v] : vertices_) {
+        if (v.display_name == displayOrKey)
+            return key;
+    }
+    return displayOrKey; // fallback
 }
 
 bool Graph::addEdge(const std::string& from, const std::string& to,

@@ -5,7 +5,7 @@ int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
     app.setApplicationName("GraphViz");
-    app.setApplicationVersion("1.0.0");
+    app.setApplicationVersion("1.1.0");
 
     MainWindow window;
     window.show();

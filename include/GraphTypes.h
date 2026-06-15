@@ -3,10 +3,11 @@
 
 #include <string>
 
-/// 顶点 — 唯一标识为 name
+/// 顶点 — 唯一标识为 name，display_name 为画布显示名
 struct Vertex {
-    std::string name;
-    int id = 0;          // 自动分配编号
+    std::string name;          // 内部唯一 key（如 "A" 或 "A#1"）
+    std::string display_name;  // 画布显示名（如 "A"），空时回退到 name
+    int id = 0;                // 自动分配编号
 };
 
 /// 边 — 有向/无向、带权/无权重

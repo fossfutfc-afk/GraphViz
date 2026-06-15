@@ -38,16 +38,29 @@ struct CriticalResult {
 /// 欧拉回路/通路结果
 struct EulerResult {
     bool exists = false;
-    bool isCircuit = false;           // true=回路, false=通路
-    std::vector<std::string> nodes;   // 顶点序列 [a, b, c, ..., a]  回路首尾相同
+    bool isCircuit = false;                              // true=回路, false=通路
+    std::vector<std::string> nodes;                      // 当前显示的解
+    std::string message;                                 // 额外说明
+    std::vector<std::vector<std::string>> allSolutions;  // 所有解 (v1.1.0)
+    int solutionIndex = 0;                               // 当前解索引
 };
 
 /// 哈密顿回路/通路结果
 struct HamiltonResult {
     bool found = false;
     bool isCircuit = false;
-    std::vector<std::string> nodes;
-    std::string message;              // 额外说明（如"图过大，无法计算"）
+    std::vector<std::string> nodes;                     // 当前显示的解
+    std::string message;                                // 额外说明
+    std::vector<std::vector<std::string>> allSolutions; // 所有解 (v1.1.0)
+    int solutionIndex = 0;                              // 当前解索引
+};
+
+/// 平面性检测结果
+struct PlanarityResult {
+    bool isPlanar = true;
+    std::string message;       // 可读说明
+    int vertexCount = 0;
+    int edgeCount = 0;
 };
 
 // ── 算法类 ──
@@ -72,16 +85,27 @@ public:
     static CriticalResult findCritical(const Graph& graph);
 
     // ── 欧拉回路（Hierholzer，无向图） ──
-    static EulerResult eulerCircuit(const Graph& graph);
+    /// @param startVertex 指定起点（空串 = 自动选择）
+    static EulerResult eulerCircuit(const Graph& graph,
+                                    const std::string& startVertex = "");
 
     // ── 欧拉通路（Hierholzer 变体，无向图） ──
-    static EulerResult eulerTrail(const Graph& graph);
+    /// @param startVertex 指定起点（空串 = 自动选择第一个奇度顶点）
+    static EulerResult eulerTrail(const Graph& graph,
+                                  const std::string& startVertex = "");
 
     // ── 哈密顿回路（回溯 + 剪枝） ──
-    static HamiltonResult hamiltonCircuit(const Graph& graph);
+    /// @param startVertex 指定起点（空串 = 从顶点0开始）
+    static HamiltonResult hamiltonCircuit(const Graph& graph,
+                                          const std::string& startVertex = "");
 
     // ── 哈密顿通路（回溯 + 剪枝） ──
-    static HamiltonResult hamiltonPath(const Graph& graph);
+    /// @param startVertex 指定起点（空串 = 尝试所有顶点）
+    static HamiltonResult hamiltonPath(const Graph& graph,
+                                       const std::string& startVertex = "");
+
+    // ── 平面性检测 ──
+    static PlanarityResult checkPlanarity(const Graph& graph);
 };
 
 #endif // GRAPHALGORITHM_H

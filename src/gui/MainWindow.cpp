@@ -25,8 +25,9 @@
 // 示例图数据
 static const char* SAMPLE_GRAPH =
     "# === GraphViz 示例图 ===\n"
-    "# 混合有向/无向/带权边\n"
+    "# 特色: 有向/无向/带权/平行边/自环/同名节点\n"
     "\n"
+    "# ── 核心网状结构 ──\n"
     "A---B\n"
     "A---C\n"
     "B---D\n"
@@ -35,10 +36,26 @@ static const char* SAMPLE_GRAPH =
     "C-2--F\n"
     "D---E\n"
     "E---F\n"
+    "# 增加内部连接，让布局更紧凑\n"
+    "A---D\n"
+    "B---F\n"
+    "\n"
+    "# ── 有向边三角 (通过多条边与主区域相连) ──\n"
     "G-->H\n"
     "H-->I\n"
     "I-->G\n"
-    "A-->G\n";
+    "A-->G\n"
+    "E---H\n"
+    "F---I\n"
+    "\n"
+    "# ── 特色功能展示 ──\n"
+    "D-4--B          # 平行边 (B-D 已有一条无向边)\n"
+    "G---G           # 自环\n"
+    "\n"
+    "# ── 同名节点: 两个\"2\"是不同的顶点 ──\n"
+    "2(1)---C\n"
+    "2(2)---F\n"
+    "2(1)-2--2(2)\n";
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -170,6 +187,7 @@ QWidget* MainWindow::createControlBar()
         "哈密顿通路 (回溯)",
         "连通分量 (BFS)",
         "强连通分量 (Kosaraju)",
+        "平面性检测 (Planarity)",
     });
     layout->addWidget(m_algoCombo);
 
@@ -202,6 +220,20 @@ QWidget* MainWindow::createControlBar()
     QPushButton *btnClearAll = new QPushButton("清除全部", this);
     connect(btnClearAll, &QPushButton::clicked, this, &MainWindow::onClearAll);
     layout->addWidget(btnClearAll);
+
+    layout->addSpacing(8);
+
+    m_btnPrevSolution = new QPushButton("< 上一解", this);
+    m_btnPrevSolution->setEnabled(false);
+    m_btnPrevSolution->setToolTip("查看上一个解");
+    connect(m_btnPrevSolution, &QPushButton::clicked, this, &MainWindow::onPrevSolution);
+    layout->addWidget(m_btnPrevSolution);
+
+    m_btnNextSolution = new QPushButton("下一解 >", this);
+    m_btnNextSolution->setEnabled(false);
+    m_btnNextSolution->setToolTip("查看下一个解");
+    connect(m_btnNextSolution, &QPushButton::clicked, this, &MainWindow::onNextSolution);
+    layout->addWidget(m_btnNextSolution);
 
     layout->addStretch();
 
@@ -292,6 +324,15 @@ void MainWindow::onExecuteAlgorithm()
     QString to = m_toEdit->text().trimmed();
 
     m_graphWidget->clearHighlights();
+    clearSolutionButtons();
+
+    // 辅助: 将顶点序列转为 display_name 字符串
+    auto displaySeq = [&](const std::vector<std::string>& nodes) -> QString {
+        QStringList parts;
+        for (const auto& n : nodes)
+            parts.append(QString::fromStdString(m_graph->getDisplayName(n)));
+        return parts.join(" → ");
+    };
 
     try {
         switch (algoIndex) {
@@ -300,15 +341,17 @@ void MainWindow::onExecuteAlgorithm()
                 QMessageBox::information(this, "提示", "请输入起点和终点。");
                 return;
             }
+            std::string fromKey = m_graph->resolveVertexName(from.toStdString());
+            std::string toKey   = m_graph->resolveVertexName(to.toStdString());
             auto result = GraphAlgorithm::shortestPath(
-                *m_graph, from.toStdString(), to.toStdString());
+                *m_graph, fromKey, toKey);
             if (result.found) {
                 QVector<QString> nodes;
                 for (const auto& n : result.nodes)
                     nodes.append(QString::fromStdString(n));
                 m_graphWidget->setPathHighlight(nodes);
-                updateStatus(QString("最短路径: 权重 %1, 经过 %2 个顶点")
-                    .arg(result.totalWeight).arg(result.nodes.size()));
+                updateStatus(QString("最短路径: 权重 %1, %2")
+                    .arg(result.totalWeight).arg(displaySeq(result.nodes)));
             } else {
                 updateStatus("未找到最短路径（不连通？）");
             }
@@ -344,56 +387,71 @@ void MainWindow::onExecuteAlgorithm()
             break;
         }
         case 3: { // 欧拉回路
-            auto result = GraphAlgorithm::eulerCircuit(*m_graph);
+            std::string startV;
+            if (!from.isEmpty())
+                startV = m_graph->resolveVertexName(from.toStdString());
+            auto result = GraphAlgorithm::eulerCircuit(*m_graph, startV);
+            m_lastEulerResult = result;
+            m_hasEulerResult = result.exists && result.allSolutions.size() > 1;
             if (result.exists) {
-                QVector<QString> edges;
-                for (size_t i = 0; i + 1 < result.nodes.size(); ++i) {
-                    std::string key = result.nodes[i] + "|" + result.nodes[i + 1];
-                    edges.append(QString::fromStdString(key));
+                applyEulerHighlight(result.nodes, result.isCircuit);
+                if (result.allSolutions.size() > 1) {
+                    updateStatus(QString("欧拉回路: 解 1/%1, %2")
+                        .arg(result.allSolutions.size()).arg(displaySeq(result.nodes)));
+                    m_btnPrevSolution->setEnabled(true);
+                    m_btnNextSolution->setEnabled(true);
+                } else {
+                    updateStatus("欧拉回路: " + displaySeq(result.nodes));
                 }
-                m_graphWidget->setEdgeHighlight(edges, HighlightType::Euler);
-                QString seq;
-                for (size_t i = 0; i < result.nodes.size(); ++i) {
-                    if (i > 0) seq += " → ";
-                    seq += QString::fromStdString(result.nodes[i]);
-                }
-                updateStatus("欧拉回路: " + seq);
             } else {
-                updateStatus("不存在欧拉回路（度数条件不满足或图不连通）");
+                updateStatus(QString::fromStdString(
+                    "不存在欧拉回路: " + result.message));
             }
             break;
         }
         case 4: { // 欧拉通路
-            auto result = GraphAlgorithm::eulerTrail(*m_graph);
+            std::string startV;
+            if (!from.isEmpty())
+                startV = m_graph->resolveVertexName(from.toStdString());
+            auto result = GraphAlgorithm::eulerTrail(*m_graph, startV);
+            m_lastEulerResult = result;
+            m_hasEulerResult = result.exists && result.allSolutions.size() > 1;
             if (result.exists) {
-                QVector<QString> edges;
-                for (size_t i = 0; i + 1 < result.nodes.size(); ++i) {
-                    std::string key = result.nodes[i] + "|" + result.nodes[i + 1];
-                    edges.append(QString::fromStdString(key));
-                }
-                m_graphWidget->setEdgeHighlight(edges, HighlightType::Euler);
-                QString seq;
-                for (size_t i = 0; i < result.nodes.size(); ++i) {
-                    if (i > 0) seq += " → ";
-                    seq += QString::fromStdString(result.nodes[i]);
-                }
+                applyEulerHighlight(result.nodes, result.isCircuit);
                 QString type = result.isCircuit ? "回路" : "通路";
-                updateStatus("欧拉" + type + ": " + seq);
+                if (result.allSolutions.size() > 1) {
+                    updateStatus(QString("欧拉%1: 解 1/%2, %3")
+                        .arg(type).arg(result.allSolutions.size())
+                        .arg(displaySeq(result.nodes)));
+                    m_btnPrevSolution->setEnabled(true);
+                    m_btnNextSolution->setEnabled(true);
+                } else {
+                    updateStatus("欧拉" + type + ": " + displaySeq(result.nodes));
+                }
             } else {
-                updateStatus("不存在欧拉通路（需恰有0或2个奇度顶点且非零度顶点连通）");
+                updateStatus(QString::fromStdString(
+                    "不存在欧拉通路: " + result.message));
             }
             break;
         }
         case 5: { // 哈密顿回路
-            auto result = GraphAlgorithm::hamiltonCircuit(*m_graph);
+            std::string startV;
+            if (!from.isEmpty())
+                startV = m_graph->resolveVertexName(from.toStdString());
+            auto result = GraphAlgorithm::hamiltonCircuit(*m_graph, startV);
+            m_lastHamiltonResult = result;
+            m_hasHamiltonResult = result.found && result.allSolutions.size() > 1;
             if (result.found) {
-                QVector<QString> edges;
-                for (size_t i = 0; i + 1 < result.nodes.size(); ++i) {
-                    std::string key = result.nodes[i] + "|" + result.nodes[i + 1];
-                    edges.append(QString::fromStdString(key));
+                applyHamiltonHighlight(result.nodes, result.isCircuit);
+                if (result.allSolutions.size() > 1) {
+                    updateStatus(QString("哈密顿回路: 解 1/%1, %2 个顶点")
+                        .arg(result.allSolutions.size()).arg(result.nodes.size() - 1));
+                    m_btnPrevSolution->setEnabled(true);
+                    m_btnNextSolution->setEnabled(true);
+                } else {
+                    updateStatus(QString("哈密顿回路: %1 个顶点 (唯一解)")
+                        .arg(result.nodes.size() - 1));
                 }
-                m_graphWidget->setEdgeHighlight(edges, HighlightType::Hamilton);
-                updateStatus(QString("哈密顿回路: %1 个顶点").arg(result.nodes.size() - 1));
             } else {
                 updateStatus("未找到哈密顿回路: " +
                             QString::fromStdString(result.message));
@@ -401,15 +459,23 @@ void MainWindow::onExecuteAlgorithm()
             break;
         }
         case 6: { // 哈密顿通路
-            auto result = GraphAlgorithm::hamiltonPath(*m_graph);
+            std::string startV;
+            if (!from.isEmpty())
+                startV = m_graph->resolveVertexName(from.toStdString());
+            auto result = GraphAlgorithm::hamiltonPath(*m_graph, startV);
+            m_lastHamiltonResult = result;
+            m_hasHamiltonResult = result.found && result.allSolutions.size() > 1;
             if (result.found) {
-                QVector<QString> edges;
-                for (size_t i = 0; i + 1 < result.nodes.size(); ++i) {
-                    std::string key = result.nodes[i] + "|" + result.nodes[i + 1];
-                    edges.append(QString::fromStdString(key));
+                applyHamiltonHighlight(result.nodes, result.isCircuit);
+                if (result.allSolutions.size() > 1) {
+                    updateStatus(QString("哈密顿通路: 解 1/%1, %2 个顶点")
+                        .arg(result.allSolutions.size()).arg(result.nodes.size()));
+                    m_btnPrevSolution->setEnabled(true);
+                    m_btnNextSolution->setEnabled(true);
+                } else {
+                    updateStatus(QString("哈密顿通路: %1 个顶点 (唯一解)")
+                        .arg(result.nodes.size()));
                 }
-                m_graphWidget->setEdgeHighlight(edges, HighlightType::Hamilton);
-                updateStatus(QString("哈密顿通路: %1 个顶点").arg(result.nodes.size()));
             } else {
                 updateStatus("未找到哈密顿通路: " +
                             QString::fromStdString(result.message));
@@ -440,6 +506,17 @@ void MainWindow::onExecuteAlgorithm()
             }
             m_graphWidget->setComponentHighlight(comps);
             updateStatus(QString("强连通分量: %1 个").arg(comps.size()));
+            break;
+        }
+        case 9: { // 平面性检测
+            auto result = GraphAlgorithm::checkPlanarity(*m_graph);
+            if (result.isPlanar) {
+                updateStatus(QString("✓ 平面图 — %1")
+                    .arg(QString::fromStdString(result.message)));
+            } else {
+                updateStatus(QString("✗ 非平面图 — %1")
+                    .arg(QString::fromStdString(result.message)));
+            }
             break;
         }
         }
@@ -495,4 +572,104 @@ void MainWindow::onResetLayout()
 void MainWindow::updateStatus(const QString& msg)
 {
     m_statusLabel->setText(msg);
+}
+
+void MainWindow::applyHamiltonHighlight(const std::vector<std::string>& nodes, bool isCircuit)
+{
+    QVector<QString> edges;
+    size_t end = isCircuit ? nodes.size() - 1 : nodes.size();
+    for (size_t i = 0; i < end; ++i) {
+        std::string key = nodes[i] + "|" + nodes[(i + 1) % nodes.size()];
+        edges.append(QString::fromStdString(key));
+    }
+    m_graphWidget->setEdgeHighlight(edges, HighlightType::Hamilton);
+}
+
+void MainWindow::applyEulerHighlight(const std::vector<std::string>& nodes, bool isCircuit)
+{
+    QVector<QString> edges;
+    size_t end = nodes.size() - 1;
+    for (size_t i = 0; i < end; ++i) {
+        std::string key = nodes[i] + "|" + nodes[i + 1];
+        edges.append(QString::fromStdString(key));
+    }
+    m_graphWidget->setEdgeHighlight(edges, HighlightType::Euler);
+}
+
+void MainWindow::clearSolutionButtons()
+{
+    m_btnPrevSolution->setEnabled(false);
+    m_btnNextSolution->setEnabled(false);
+    m_hasHamiltonResult = false;
+    m_hasEulerResult = false;
+}
+
+void MainWindow::onPrevSolution()
+{
+    auto displaySeq = [&](const std::vector<std::string>& nodes) -> QString {
+        QStringList parts;
+        for (const auto& n : nodes)
+            parts.append(QString::fromStdString(m_graph->getDisplayName(n)));
+        return parts.join(" → ");
+    };
+    if (m_hasEulerResult) {
+        auto& result = m_lastEulerResult;
+        int total = static_cast<int>(result.allSolutions.size());
+        if (total <= 1) return;
+        result.solutionIndex = (result.solutionIndex - 1 + total) % total;
+        result.nodes = result.allSolutions[result.solutionIndex];
+        applyEulerHighlight(result.nodes, result.isCircuit);
+        updateStatus(QString("欧拉%1: 解 %2/%3, %4")
+            .arg(result.isCircuit ? "回路" : "通路")
+            .arg(result.solutionIndex + 1).arg(total)
+            .arg(displaySeq(result.nodes)));
+        return;
+    }
+    if (!m_hasHamiltonResult) return;
+    auto& result = m_lastHamiltonResult;
+    int total = static_cast<int>(result.allSolutions.size());
+    if (total <= 1) return;
+
+    result.solutionIndex = (result.solutionIndex - 1 + total) % total;
+    result.nodes = result.allSolutions[result.solutionIndex];
+    applyHamiltonHighlight(result.nodes, result.isCircuit);
+    updateStatus(QString("哈密顿%1: 解 %2/%3, %4 个顶点")
+        .arg(result.isCircuit ? "回路" : "通路")
+        .arg(result.solutionIndex + 1).arg(total)
+        .arg(result.nodes.size() - (result.isCircuit ? 1 : 0)));
+}
+
+void MainWindow::onNextSolution()
+{
+    auto displaySeq = [&](const std::vector<std::string>& nodes) -> QString {
+        QStringList parts;
+        for (const auto& n : nodes)
+            parts.append(QString::fromStdString(m_graph->getDisplayName(n)));
+        return parts.join(" → ");
+    };
+    if (m_hasEulerResult) {
+        auto& result = m_lastEulerResult;
+        int total = static_cast<int>(result.allSolutions.size());
+        if (total <= 1) return;
+        result.solutionIndex = (result.solutionIndex + 1) % total;
+        result.nodes = result.allSolutions[result.solutionIndex];
+        applyEulerHighlight(result.nodes, result.isCircuit);
+        updateStatus(QString("欧拉%1: 解 %2/%3, %4")
+            .arg(result.isCircuit ? "回路" : "通路")
+            .arg(result.solutionIndex + 1).arg(total)
+            .arg(displaySeq(result.nodes)));
+        return;
+    }
+    if (!m_hasHamiltonResult) return;
+    auto& result = m_lastHamiltonResult;
+    int total = static_cast<int>(result.allSolutions.size());
+    if (total <= 1) return;
+
+    result.solutionIndex = (result.solutionIndex + 1) % total;
+    result.nodes = result.allSolutions[result.solutionIndex];
+    applyHamiltonHighlight(result.nodes, result.isCircuit);
+    updateStatus(QString("哈密顿%1: 解 %2/%3, %4 个顶点")
+        .arg(result.isCircuit ? "回路" : "通路")
+        .arg(result.solutionIndex + 1).arg(total)
+        .arg(result.nodes.size() - (result.isCircuit ? 1 : 0)));
 }

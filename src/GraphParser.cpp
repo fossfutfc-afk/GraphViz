@@ -3,6 +3,7 @@
 #include <cctype>
 #include <regex>
 #include <sstream>
+#include <unordered_set>
 
 // ═══════════════════════════════════════════════════════════════
 //  辅助：行预处理
@@ -67,12 +68,85 @@ static std::string quoteName(const std::string& name) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  顶点名后缀解析（同名节点支持）
+// ═══════════════════════════════════════════════════════════════
+
+/// 解析顶点名末尾的 (N) 后缀
+/// 返回 (internalKey, displayName, hasSuffix)
+/// 校验失败时 error 非空，返回原始 name
+static std::tuple<std::string, std::string, bool>
+parseVertexSuffix(const std::string& rawName, std::string& error) {
+    // 1. 必须以 ')' 结尾
+    if (rawName.empty() || rawName.back() != ')')
+        return {rawName, rawName, false};
+
+    // 2. 向前查找未转义的 '('
+    auto parenPos = std::string::npos;
+    for (size_t i = rawName.size() - 2; ; --i) {
+        if (rawName[i] == '(') {
+            // 检查是否被反斜杠转义
+            if (i == 0 || rawName[i - 1] != '\\') {
+                parenPos = i;
+                break;
+            }
+        }
+        if (i == 0) break;
+    }
+    if (parenPos == std::string::npos)
+        return {rawName, rawName, false};  // 无未转义的 '('
+
+    // 括号必须在末尾（即 '(' 之后只有数字和最后的 ')'）
+    // 且 '(' 不能是第一个字符（顶点名不能为空）
+
+    // 3. 检查 '(' 之前是否有字符（顶点名非空）
+    if (parenPos == 0) {
+        error = "Empty vertex name before suffix";
+        return {rawName, rawName, false};
+    }
+
+    // 4. 检查 display_name 部分是否包含未转义的括号（禁止嵌套）
+    std::string displayName = rawName.substr(0, parenPos);
+    for (size_t i = 0; i < displayName.size(); ++i) {
+        if (displayName[i] == '(' || displayName[i] == ')') {
+            if (i == 0 || displayName[i - 1] != '\\') {
+                error = "Nested parentheses in vertex name \"" + rawName + "\"";
+                return {rawName, rawName, false};
+            }
+        }
+    }
+
+    // 5. 提取后缀内容
+    std::string suffix = rawName.substr(parenPos + 1,
+        rawName.size() - parenPos - 2);  // 去掉最后的 ')'
+
+    // 6. 后缀非空
+    if (suffix.empty()) {
+        error = "Empty suffix in vertex name \"" + rawName + "\"";
+        return {rawName, rawName, false};
+    }
+
+    // 7. 后缀必须为非负整数
+    for (char c : suffix) {
+        if (!std::isdigit(static_cast<unsigned char>(c))) {
+            error = "Invalid suffix in vertex name \"" + rawName
+                  + "\": expected non-negative integer";
+            return {rawName, rawName, false};
+        }
+    }
+
+    // 8. 构建内部 key
+    std::string internalKey = displayName + "#" + suffix;
+    return {internalKey, displayName, true};
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  顶点名解析
 // ═══════════════════════════════════════════════════════════════
 
-/// 解析顶点名，返回 (name, newPos)。name 为空表示解析失败
+/// 解析顶点名，返回 (internalKey, newPos)。name 为空表示解析失败
+/// @param error 若非空，后缀解析错误写入此处
 static std::pair<std::string, size_t>
-parseVertexName(const std::string& line, size_t pos) {
+parseVertexName(const std::string& line, size_t pos, std::string* error = nullptr) {
     // 跳过前导空白
     while (pos < line.size() && (line[pos] == ' ' || line[pos] == '\t'))
         ++pos;
@@ -126,7 +200,14 @@ parseVertexName(const std::string& line, size_t pos) {
             ++pos;
         }
         if (pos == start) return {"", pos};
-        return {line.substr(start, pos - start), pos};
+        std::string rawName = line.substr(start, pos - start);
+        std::string suffixErr;
+        auto [internalKey, displayName, hasSuffix] = parseVertexSuffix(rawName, suffixErr);
+        if (!suffixErr.empty()) {
+            if (error) *error = suffixErr;
+            return {"", pos};
+        }
+        return {internalKey, pos};
     }
 }
 
@@ -313,9 +394,9 @@ bool GraphParser::parseLine(const std::string& line, Graph& graph,
                              std::string& error)
 {
     // 1. 解析左顶点
-    auto [left, pos] = parseVertexName(line, 0);
+    auto [left, pos] = parseVertexName(line, 0, &error);
     if (left.empty()) {
-        error = "Missing left vertex name";
+        if (error.empty()) error = "Missing left vertex name";
         return false;
     }
 
@@ -330,9 +411,12 @@ bool GraphParser::parseLine(const std::string& line, Graph& graph,
     }
 
     // 3. 解析右顶点
-    auto [right, _] = parseVertexName(line, opEnd);
+    std::string rightError;
+    auto [right, _] = parseVertexName(line, opEnd, &rightError);
     if (right.empty()) {
-        error = "Missing right vertex name after operator";
+        error = rightError.empty()
+            ? "Missing right vertex name after operator"
+            : rightError;
         return false;
     }
 
@@ -346,11 +430,37 @@ bool GraphParser::parseLine(const std::string& line, Graph& graph,
 
 std::string GraphParser::serialize(const Graph& graph)
 {
+    // ── 构建 display_name → [internal_keys] 分组 ──
+    std::unordered_map<std::string, std::vector<std::string>> displayGroups;
+    for (const auto& name : graph.getAllVertexNames()) {
+        std::string display = graph.getDisplayName(name);
+        displayGroups[display].push_back(name);
+    }
+
+    // 需要后缀的 display_name
+    std::unordered_set<std::string> needsSuffix;
+    for (const auto& [display, keys] : displayGroups) {
+        if (keys.size() > 1)
+            needsSuffix.insert(display);
+    }
+
+    // 格式化顶点名用于输出
+    auto formatVertex = [&](const std::string& internalKey) -> std::string {
+        std::string display = graph.getDisplayName(internalKey);
+        if (needsSuffix.count(display)) {
+            size_t hashPos = internalKey.find('#');
+            std::string suffix = (hashPos != std::string::npos)
+                ? internalKey.substr(hashPos + 1) : "0";
+            return display + "(" + suffix + ")";
+        }
+        return needsQuoting(display) ? quoteName(display) : display;
+    };
+
     std::ostringstream oss;
     auto edges = graph.getAllEdges();
     for (const auto& e : edges) {
-        std::string fromStr = needsQuoting(e.from) ? quoteName(e.from) : e.from;
-        std::string toStr   = needsQuoting(e.to)   ? quoteName(e.to)   : e.to;
+        std::string fromStr = formatVertex(e.from);
+        std::string toStr   = formatVertex(e.to);
 
         // 格式化权重字符串
         std::string wStr;
@@ -358,12 +468,11 @@ std::string GraphParser::serialize(const Graph& graph)
 
         if (showWeight) {
             if (e.weight < 0)
-                wStr = "\"" + std::to_string(static_cast<int>(e.weight)) + "\"";  // 负权用引号
+                wStr = "\"" + std::to_string(static_cast<int>(e.weight)) + "\"";
             else if (e.weight == static_cast<int>(e.weight))
                 wStr = std::to_string(static_cast<int>(e.weight));
             else
                 wStr = std::to_string(e.weight);
-            // 去掉末尾多余的 0
             if (wStr.find('.') != std::string::npos) {
                 while (wStr.back() == '0') wStr.pop_back();
                 if (wStr.back() == '.') wStr.pop_back();

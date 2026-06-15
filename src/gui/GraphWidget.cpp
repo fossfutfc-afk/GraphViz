@@ -518,6 +518,7 @@ void GraphWidget::paintEvent(QPaintEvent* /*event*/)
                         center.y() - kNODE_RADIUS,
                         kNODE_RADIUS * 4,
                         kNODE_RADIUS * 2);
-        painter.drawText(textRect, Qt::AlignCenter, it.key());
+        std::string displayName = m_graph->getDisplayName(it.key().toStdString());
+        painter.drawText(textRect, Qt::AlignCenter, QString::fromStdString(displayName));
     }
 }
