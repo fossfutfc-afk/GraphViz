@@ -1,6 +1,6 @@
 # GraphViz — 图论可视化工具
 
-基于 C++/Qt6 的图论可视化桌面工具。支持有向图和无向图的文本输入、力导向自动布局、鼠标拖拽交互，以及 9 种经典图论算法的高亮展示。无第三方依赖（除 Qt 和 C++ 标准库）。
+基于 C++/Qt6 的图论可视化桌面工具。支持有向图和无向图的文本输入、力导向自动布局、鼠标拖拽交互，以及 10 种经典图论算法的高亮展示。无第三方依赖（除 Qt 和 C++ 标准库）。
 
 ![程序全貌](docs/screenshots/overview.png)
 
@@ -19,7 +19,7 @@ GraphViz/
 │   ├── GraphTypes.h            # Vertex / Edge 数据结构
 │   ├── Graph.h                 # 图存储层（邻接表，支持平行边和自环）
 │   ├── GraphParser.h           # 边格式文本解析器
-│   └── GraphAlgorithm.h        # 9 种算法声明 + 结果结构体
+│   └── GraphAlgorithm.h        # 10 种算法声明 + 结果结构体
 ├── src/                        # 实现文件
 │   ├── main.cpp                # 应用入口
 │   ├── Graph.cpp               # 图存储实现
@@ -30,6 +30,8 @@ GraphViz/
 │       ├── GraphWidget.h/cpp   # 图渲染组件（QPainter 自绘）
 │       ├── GraphTextEdit.h/cpp # 编辑组件（Shift+Tab 支持）
 │       └── ForceLayout.h/cpp   # Fruchterman-Reingold 力导向布局
+├── samples/                    # 展示用图数据（入包）
+│   └── ...
 └── test_data/                  # 示例与测试图数据
     ├── sample.graph            # 默认示例图（启动自动加载）
     ├── euler.graph             # 欧拉回路测试图
@@ -46,7 +48,7 @@ GraphViz/
 | `GraphTypes.h` | `Vertex`（name + 自增 id）、`Edge`（from/to/weight/directed/id/explicit_weight） |
 | `Graph` | 邻接表存储，支持有向/无向混合、平行边、自环。Edge 按唯一 id 去重，`hasExplicitWeight()` 控制全局权重显示 |
 | `GraphParser` | 灵活文本解析：手动字符扫描 + 引号名 + 转义 + 操作符结构校验 + 负权引号格式 |
-| `GraphAlgorithm` | 全部算法静态方法：Dijkstra、Kruskal、Tarjan、Hierholzer、回溯哈密顿、BFS/Kosaraju 分量 |
+| `GraphAlgorithm` | 全部算法静态方法：Dijkstra、Kruskal、Tarjan、Hierholzer（多解+指定起点）、回溯哈密顿（多解+指定起点）、BFS/Kosaraju 分量、平面性检测 |
 | `MainWindow` | 菜单栏（文件/编辑/视图）、左侧编辑面板、控制栏（算法选择/参数/按钮）、状态栏 |
 | `GraphWidget` | QWidget 子类，paintEvent 手绘：节点圆+标签、有向箭头、自环弧线、平行边偏移、权重标签分散、高亮着色 |
 | `GraphTextEdit` | QPlainTextEdit 子类，增加 Shift+Tab 前向缩进（Key_Backtab 处理） |
@@ -109,6 +111,17 @@ cmake --build build-gui --config Release
 | `A---A` | 无向自环 |
 | `A-->A` | 有向自环 |
 
+### 同名节点（v1.1.0）
+
+| 格式 | 含义 |
+|------|------|
+| `2(1)---5` | 顶点 "2"，内部标识 `2#1`，画布显示 `2` |
+| `2(2)---3` | 另一个顶点 "2"，内部标识 `2#2`，画布显示 `2` |
+
+- `name(N)` — N 为非负整数，括号紧贴顶点名末尾
+- 不含后缀时行为不变（向后兼容）
+- 引号名不触发后缀解析
+
 ### 错误拒绝
 
 | 格式 | 原因 |
@@ -152,7 +165,7 @@ cmake --build build-gui --config Release
 
 ---
 
-## 图论算法（9 种）
+## 图论算法（10 种）
 
 ![欧拉回路](docs/screenshots/euler-circuit.png)
 
@@ -161,12 +174,13 @@ cmake --build build-gui --config Release
 | 1 | 最短路径 | Dijkstra | 起点 + 终点 | 绿 |
 | 2 | 最小生成树 | Kruskal | — | 橙 |
 | 3 | 关节点 & 桥 | Tarjan DFS | — | 红节点 / 紫边 |
-| 4 | 欧拉回路 | Hierholzer | — | 蓝 |
-| 5 | 欧拉通路 | Hierholzer 变体 | — | 蓝 |
-| 6 | 哈密顿回路 | 回溯 + 剪枝 (≤20) | — | 青 |
-| 7 | 哈密顿通路 | 回溯 + 剪枝 (≤20) | — | 青 |
+| 4 | 欧拉回路 | Hierholzer + 回溯 | 起点（可选） | 蓝 |
+| 5 | 欧拉通路 | Hierholzer + 回溯 | 起点（可选） | 蓝 |
+| 6 | 哈密顿回路 | 回溯 + 剪枝 (≤20) | 起点（可选） | 青 |
+| 7 | 哈密顿通路 | 回溯 + 剪枝 (≤20) | 起点（可选） | 青 |
 | 8 | 连通分量 | BFS | — | 多色 |
 | 9 | 强连通分量 | Kosaraju | — | 多色 |
+| 10 | 平面性检测 | Euler公式 + K5/K3,3 | — | 状态栏 |
 
 ### 算法说明
 
@@ -182,14 +196,22 @@ cmake --build build-gui --config Release
 - 单次 DFS，桥判定 `low[v] > disc[u]`
 - 根节点 `children > 1` 为割点
 
-**欧拉回路 / 通路 (Hierholzer)**
+**欧拉回路 / 通路 (Hierholzer + 回溯多解)**
 - 回路：所有非零度顶点度数为偶 + 连通
 - 通路：恰有 0 或 2 个奇度顶点 + 连通
 - 自环正确计度数为 2
+- 小图 (n≤15, m≤30) 回溯收集多条解，大图贪心单解
+- 支持指定起点（from 输入框），回路任意顶点、通路须奇度顶点
 
 **哈密顿回路 / 通路 (回溯)**
 - 顶点数 ≤ 20，超过自动跳过并提示
-- 回路固定从首顶点出发，通路尝试每种起点
+- 回路从指定起点（或默认首顶点）出发；通路可指定或遍历所有起点
+- 收集所有解（上限 100），UI 提供「上一解 / 下一解」切换
+
+**平面性检测**
+- Euler 公式快速否定 (m_unique > 3n-6)
+- n≤10 暴力搜索 K5/K3,3 子图
+- n≤4 自动判定平面
 
 **连通分量 (BFS) / 强连通分量 (Kosaraju)**
 - 分量大小降序排列，各分量独立着色
@@ -224,7 +246,8 @@ cmake --build build-gui --config Release
 
 ### 顶点
 
-- `name`（string）：唯一标识，不可重复
+- `name`（string）：内部唯一标识（如 `A` 或 `A#1`）
+- `display_name`（string）：画布显示名（如 `A`），支持同名不同实例
 - `id`（int）：自增编号
 
 ### 边
