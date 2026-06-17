@@ -21,6 +21,8 @@ cmake --build build
 
 No test suite exists (`enable_testing()` is in CMakeLists.txt but tests were removed in commit `7655059`). Manual verification: launch the app and load files from `test_data/` or `samples/`.
 
+**`.gitignore` notes**: `dist/` and `test_data/` are git-ignored for new files (existing tracked files in `test_data/` remain tracked). `samples/` is fully tracked — place distributable examples there. Build artifacts (`build*/`, `*.exe`, `*.o`) are ignored.
+
 ## Architecture
 
 **Two-layer design**: Core library (no Qt) + GUI layer (Qt6 Widgets).
@@ -63,6 +65,7 @@ Text input → GraphParser::parse() → Graph (adjacency list)
 - **Edge identity**: `Edge::id` is globally unique. Undirected reverse edges share the same id. `getAllEdges()` deduplicates by id.
 - **Vertex identity**: `name` is the internal key (e.g., `"A"` or `"A#1"` for same-name nodes). `display_name` is what the user sees (e.g., `"A"`). `resolveVertexName()` maps user input to internal keys.
 - **Same-name nodes** (v1.1.0): `2(1)---5` creates internal name `2#1` with display name `2`. Quoted names don't trigger suffix parsing.
+- **Isolated vertices** (v1.2.0): A line containing only a vertex name (unquoted: no spaces/`-`; or quoted: `"..."` with escapes) creates a standalone vertex with no edges. `serialize()` outputs them after all edges. Most algorithms already handle isolated vertices correctly; planarity and Hamilton thresholds use `nNonIsolated` (vertices with degree > 0) to avoid false negatives.
 - **All algorithms are static** — no state, no inheritance. Each returns a dedicated result struct (`PathResult`, `EulerResult`, `HamiltonResult`, etc.).
 - **Hamilton/Euler multi-solution**: Small graphs collect all solutions (up to 100); UI provides prev/next navigation. Large graphs fall back to greedy single solution.
 
@@ -79,15 +82,15 @@ Text input → GraphParser::parse() → Graph (adjacency list)
 每次完成代码修改并构建成功后，在 `dist/` 下生成便携版程序包：
 
 ```bash
-# 1. 构建 Release 版本（确保使用最新代码）
+# 1. 更新 CMakeLists.txt 中的 VERSION（如 project(GraphViz VERSION 1.2.0 ...)）
+#    版本号需与即将发布的 tag 一致，然后提交此变更
+
+# 2. 构建 Release 版本（确保使用最新代码）
 cmake --preset gui -DCMAKE_BUILD_TYPE=Release
 cmake --build build-gui --config Release
 
-# 2. 确定版本号（读取最新 git tag，按 semver 递增 patch）
-#    示例：当前最新 v1.1.0 → 新版本 v1.1.1
-
 # 3. 创建便携包目录并复制文件
-VERSION="1.1.1"
+VERSION="1.2.0"  # 与 CMakeLists.txt 中一致
 DIST_DIR="dist/GraphViz-v${VERSION}-portable"
 mkdir -p "${DIST_DIR}"
 
