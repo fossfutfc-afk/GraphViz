@@ -109,6 +109,11 @@ QHash<QString, QPointF> ForceLayout::compute(const Graph& graph,
             double nx = positions[id].x() + limited.x();
             double ny = positions[id].y() + limited.y();
 
+            // 弱中心引力：对抗边界堆积，使整体分布趋于圆形
+            double gravityStrength = k / std::min(width, height) * 0.02;
+            nx += (centerX - nx) * gravityStrength;
+            ny += (centerY - ny) * gravityStrength;
+
             // 软边界：越界时温和拉回
             if (nx < margin)        nx = nx + (margin - nx) * 0.8;
             if (nx > double(width)  - margin)
