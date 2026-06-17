@@ -14,6 +14,7 @@ GraphViz/
 ├── CMakePresets.json           # CMake 构建预设（default=CLI, gui=Qt6）
 ├── README.md
 ├── docs/
+│   ├── MANUAL.md               # 用户使用说明书（随包分发）
 │   └── screenshots/            # 界面截图
 ├── include/                    # 公共头文件
 │   ├── GraphTypes.h            # Vertex / Edge 数据结构
@@ -157,7 +158,7 @@ cmake --build build-gui --config Release
 | 左侧面板 | 多行文本编辑器，输入/编辑图数据 |
 | 右侧画布 | QPainter 渲染图结构，鼠标可拖拽顶点 |
 | 底部控制栏 | 文件操作按钮 + 算法选择 + 参数输入 |
-| 菜单栏 | 文件（打开/保存）、编辑（撤销/重做）、视图（重置布局）、帮助（检查更新/打开下载页/关于） |
+| 菜单栏 | 文件（打开/保存）、编辑（撤销/重做）、视图（重置布局）、帮助（检查更新/打开下载页/使用说明/关于） |
 
 ### 快捷键
 

@@ -99,6 +99,7 @@ cp -r build-gui/iconengines "${DIST_DIR}/"
 cp -r build-gui/networkinformation "${DIST_DIR}/"
 cp -r build-gui/tls "${DIST_DIR}/"
 cp -r build-gui/generic "${DIST_DIR}/"
+cp docs/MANUAL.md "${DIST_DIR}/"
 cp -r samples "${DIST_DIR}/"
 
 # 4. Create zip

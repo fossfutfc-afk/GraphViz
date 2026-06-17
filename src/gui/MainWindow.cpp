@@ -9,6 +9,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QDesktopServices>
+#include <QFile>
 #include <QFileDialog>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -28,38 +29,15 @@
 
 // 示例图数据
 static const char* SAMPLE_GRAPH =
-    "# === GraphViz 示例图 ===\n"
-    "# 特色: 有向/无向/带权/平行边/自环/同名节点\n"
-    "\n"
-    "# ── 核心网状结构 ──\n"
+    "# GraphViz 示例 — 基础用法\n"
+    "# 详细说明请参阅 帮助 → 使用说明\n"
+    "#\n"
+    "# 无向边 (---):\n"
     "A---B\n"
+    "B---C\n"
     "A---C\n"
-    "B---D\n"
-    "C---D\n"
-    "B-3--E\n"
-    "C-2--F\n"
-    "D---E\n"
-    "E---F\n"
-    "# 增加内部连接，让布局更紧凑\n"
-    "A---D\n"
-    "B---F\n"
-    "\n"
-    "# ── 有向边三角 (通过多条边与主区域相连) ──\n"
-    "G-->H\n"
-    "H-->I\n"
-    "I-->G\n"
-    "A-->G\n"
-    "E---H\n"
-    "F---I\n"
-    "\n"
-    "# ── 特色功能展示 ──\n"
-    "D-4--B          # 平行边 (B-D 已有一条无向边)\n"
-    "G---G           # 自环\n"
-    "\n"
-    "# ── 同名节点: 两个\"2\"是不同的顶点 ──\n"
-    "2(1)---C\n"
-    "2(2)---F\n"
-    "2(1)-2--2(2)\n";
+    "# 有向边 (-->):\n"
+    "C-->D\n";
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -86,6 +64,7 @@ MainWindow::MainWindow(QWidget *parent)
     QMenu *helpMenu = menuBar()->addMenu("帮助(&H)");
     helpMenu->addAction("检查更新(&U)", this, &MainWindow::onCheckForUpdates);
     helpMenu->addAction("打开下载页(&D)", this, &MainWindow::onOpenDownloadPage);
+    helpMenu->addAction("使用说明(&H)", this, &MainWindow::onOpenManual);
     helpMenu->addSeparator();
     helpMenu->addAction("关于(&A)", this, &MainWindow::onAbout);
 
@@ -727,6 +706,15 @@ void MainWindow::onOpenDownloadPage()
 {
     QDesktopServices::openUrl(
         QUrl("https://github.com/SiriLee/GraphViz/releases"));
+}
+
+void MainWindow::onOpenManual()
+{
+    // Prefer the manual alongside the executable (portable package layout)
+    QString manualPath = QApplication::applicationDirPath() + "/MANUAL.md";
+    if (!QFile::exists(manualPath))
+        manualPath = "docs/MANUAL.md";  // fallback when running from source tree
+    QDesktopServices::openUrl(QUrl::fromLocalFile(manualPath));
 }
 
 void MainWindow::onAbout()

@@ -40,6 +40,7 @@ private slots:
     void onNextSolution();
     void onCheckForUpdates();
     void onOpenDownloadPage();
+    void onOpenManual();
     void onAbout();
 
 private:
