@@ -110,7 +110,7 @@ QHash<QString, QPointF> ForceLayout::compute(const Graph& graph,
             double ny = positions[id].y() + limited.y();
 
             // 弱中心引力：对抗边界堆积，使整体分布趋于圆形
-            double gravityStrength = k / std::min(width, height) * 0.02;
+            double gravityStrength = k / std::min(width, height) * 0.06;
             nx += (centerX - nx) * gravityStrength;
             ny += (centerY - ny) * gravityStrength;
 
