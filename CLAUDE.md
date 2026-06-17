@@ -82,7 +82,7 @@ Before creating the zip and publishing, let the user test with an unzipped porta
 1. Ask which version number to release.
 2. Bump `CMakeLists.txt` `project()` VERSION, then build.
 3. Assemble the portable directory under `dist/GraphViz-v<version>-portable/` (do NOT zip yet).
-4. The user launches `GraphViz.exe` from **inside that portable directory** — not from `build-gui/`. This ensures all bundled files (MANUAL.md, samples, Qt plugins) are found correctly at their intended paths relative to the executable.
+4. The user launches `GraphViz.exe` from **inside that portable directory** — not from `build-gui/`. This ensures all bundled files (MANUAL.html, samples, Qt plugins) are found correctly at their intended paths relative to the executable.
 5. After the user confirms tests pass, create the zip and proceed to tag + release.
 
 ### Build a portable package
@@ -109,7 +109,7 @@ cp -r build-gui/iconengines "${DIST_DIR}/"
 cp -r build-gui/networkinformation "${DIST_DIR}/"
 cp -r build-gui/tls "${DIST_DIR}/"
 cp -r build-gui/generic "${DIST_DIR}/"
-cp docs/MANUAL.md "${DIST_DIR}/"
+cp docs/MANUAL.html "${DIST_DIR}/"
 cp -r samples "${DIST_DIR}/"
 
 # 4. Create zip

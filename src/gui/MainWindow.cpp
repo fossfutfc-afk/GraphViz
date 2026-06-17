@@ -711,9 +711,9 @@ void MainWindow::onOpenDownloadPage()
 void MainWindow::onOpenManual()
 {
     // Prefer the manual alongside the executable (portable package layout)
-    QString manualPath = QApplication::applicationDirPath() + "/MANUAL.md";
+    QString manualPath = QApplication::applicationDirPath() + "/MANUAL.html";
     if (!QFile::exists(manualPath))
-        manualPath = "docs/MANUAL.md";  // fallback when running from source tree
+        manualPath = "docs/MANUAL.html";  // fallback when running from source tree
     QDesktopServices::openUrl(QUrl::fromLocalFile(manualPath));
 }
 

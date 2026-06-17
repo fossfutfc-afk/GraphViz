@@ -14,7 +14,7 @@ GraphViz/
 ├── CMakePresets.json           # CMake 构建预设（default=CLI, gui=Qt6）
 ├── README.md
 ├── docs/
-│   ├── MANUAL.md               # 用户使用说明书（随包分发）
+│   ├── MANUAL.html              # 用户使用说明书（随包分发）
 │   └── screenshots/            # 界面截图
 ├── include/                    # 公共头文件
 │   ├── GraphTypes.h            # Vertex / Edge 数据结构
