@@ -354,17 +354,23 @@ CriticalResult GraphAlgorithm::findCritical(const Graph& graph)
         visited[name] = false;
     }
 
+    // 预建无向邻接：将有向边展开为双向，确保 DFS 遍历无向连通性。
+    // 用 unordered_set 去重平行边 — 桥的定义要求所有平行边断开才分离。
+    std::unordered_map<std::string, std::unordered_set<std::string>> undirectedAdj;
+    for (const auto& name : allNodes) {
+        for (const auto& e : graph.getAdjacent(name)) {
+            undirectedAdj[name].insert(e.to);
+            undirectedAdj[e.to].insert(name);
+        }
+    }
+
     std::function<void(const std::string&, const std::string&)> dfs =
         [&](const std::string& u, const std::string& parent) {
             visited[u] = true;
             disc[u] = low[u] = ++time;
             int children = 0;
 
-            for (const auto& e : graph.getAdjacent(u)) {
-                std::string v = e.to;
-
-                // 有向边可能不是双向的，需要特殊处理
-                // 对于关节点/桥，我们只看无向连通性
+            for (const auto& v : undirectedAdj[u]) {
                 if (!visited[v]) {
                     ++children;
                     dfs(v, u);
