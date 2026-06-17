@@ -61,14 +61,14 @@ QHash<QString, QPointF> ForceLayout::compute(const Graph& graph,
     for (int iter = 0; iter < iterations; ++iter) {
         QHash<QString, QPointF> disp;
 
-        // 3a. 排斥力（增强 1.5x，防止顶点挤压到边缘共线）
+        // 3a. 排斥力（标准 FR 公式）
         for (int i = 0; i < n; ++i) {
             for (int j = i + 1; j < n; ++j) {
                 QPointF delta = positions[ids[i]] - positions[ids[j]];
                 double dist = std::hypot(delta.x(), delta.y());
                 if (dist < 1.0) dist = 1.0;
 
-                double force = 1.5 * k * k / dist;
+                double force = 1.0 * k * k / dist;
                 QPointF d = delta / dist * force;
                 disp[ids[i]] += d;
                 disp[ids[j]] -= d;
@@ -108,11 +108,6 @@ QHash<QString, QPointF> ForceLayout::compute(const Graph& graph,
             QPointF limited = d / dlen * std::min(dlen, t);
             double nx = positions[id].x() + limited.x();
             double ny = positions[id].y() + limited.y();
-
-            // 弱中心引力：对抗边界堆积，使整体分布趋于圆形
-            double gravityStrength = k / std::min(width, height) * 0.06;
-            nx += (centerX - nx) * gravityStrength;
-            ny += (centerY - ny) * gravityStrength;
 
             // 软边界：越界时温和拉回
             if (nx < margin)        nx = nx + (margin - nx) * 0.8;
