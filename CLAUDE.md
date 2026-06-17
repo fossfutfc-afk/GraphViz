@@ -71,6 +71,8 @@ Text input → GraphParser::parse() → Graph (adjacency list)
 
 ## Releasing
 
+Typical workflow: plan → implement → build → package → user tests → user approves → tag → write release notes → publish.
+
 When the user asks to create a release, follow these steps. Do not release without explicit confirmation.
 
 ### Build a portable package
@@ -107,6 +109,14 @@ cp -r samples "${DIST_DIR}/"
 
 ### Publish a GitHub Release (user confirmation required)
 
+**Write release notes.** Check the previous release for format and style consistency:
+```bash
+gh release view <previous-tag> --json body
+```
+Write notes covering new features, fixes, and changed files. Match the existing
+language and section structure (heading, changelog, test plan, file list, etc.).
+
+**Tag, push, and create the release:**
 ```bash
 VERSION="<version>"
 git tag "v${VERSION}"
@@ -114,5 +124,7 @@ git push origin main --tags
 gh release create "v${VERSION}" \
     "dist/GraphViz-v${VERSION}-portable.zip" \
     --title "GraphViz v${VERSION}" \
-    --generate-notes
+    --notes "<release notes>"
 ```
+
+If the notes need revision after publishing, use `gh release edit v${VERSION} --notes "..."`.
