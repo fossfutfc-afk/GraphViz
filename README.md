@@ -29,7 +29,8 @@ GraphViz/
 │       ├── MainWindow.h/cpp    # 主窗口（输入面板 + 控制栏 + 菜单）
 │       ├── GraphWidget.h/cpp   # 图渲染组件（QPainter 自绘）
 │       ├── GraphTextEdit.h/cpp # 编辑组件（Shift+Tab 支持）
-│       └── ForceLayout.h/cpp   # Fruchterman-Reingold 力导向布局
+│       ├── ForceLayout.h/cpp   # Fruchterman-Reingold 力导向布局
+│       └── UpdateChecker.h/cpp # GitHub API 异步更新检查
 ├── samples/                    # 展示用图数据（入包）
 │   └── ...
 └── test_data/                  # 示例与测试图数据
@@ -49,7 +50,8 @@ GraphViz/
 | `Graph` | 邻接表存储，支持有向/无向混合、平行边、自环。Edge 按唯一 id 去重，`hasExplicitWeight()` 控制全局权重显示 |
 | `GraphParser` | 灵活文本解析：手动字符扫描 + 引号名 + 转义 + 操作符结构校验 + 负权引号格式 + 孤立点 |
 | `GraphAlgorithm` | 全部算法静态方法：Dijkstra、Kruskal、Tarjan、Hierholzer（多解+指定起点）、回溯哈密顿（多解+指定起点）、BFS/Kosaraju 分量、平面性检测 |
-| `MainWindow` | 菜单栏（文件/编辑/视图）、左侧编辑面板、控制栏（算法选择/参数/按钮）、状态栏 |
+| `MainWindow` | 菜单栏（文件/编辑/视图/帮助）、左侧编辑面板、控制栏（算法选择/参数/按钮）、状态栏 |
+| `UpdateChecker` | QObject 子类，异步调用 GitHub Releases API 获取最新版本号，语义化版本比较 |
 | `GraphWidget` | QWidget 子类，paintEvent 手绘：节点圆+标签、有向箭头、自环弧线、平行边偏移、权重标签分散、高亮着色 |
 | `GraphTextEdit` | QPlainTextEdit 子类，增加 Shift+Tab 前向缩进（Key_Backtab 处理） |
 | `ForceLayout` | Fruchterman-Reingold 算法：环形初始分布（+小幅抖动）、乘法降温 150 次迭代、软边界、平行边端点对去重 |
@@ -155,7 +157,7 @@ cmake --build build-gui --config Release
 | 左侧面板 | 多行文本编辑器，输入/编辑图数据 |
 | 右侧画布 | QPainter 渲染图结构，鼠标可拖拽顶点 |
 | 底部控制栏 | 文件操作按钮 + 算法选择 + 参数输入 |
-| 菜单栏 | 文件（打开/保存）、编辑（撤销/重做）、视图（重置布局） |
+| 菜单栏 | 文件（打开/保存）、编辑（撤销/重做）、视图（重置布局）、帮助（检查更新/打开下载页/关于） |
 
 ### 快捷键
 
@@ -174,6 +176,12 @@ cmake --build build-gui --config Release
 - **平行边**：自动垂直偏移 ±7px 分开，权重标签沿边均匀分散
 - **权重显示**：图中任一边显式提供权重时，全部边显示权值；否则全部隐藏
 - **高亮**：每种算法有专属颜色（绿/橙/红紫/蓝/青/多色）
+
+### 帮助菜单（v1.2.0）
+
+- **检查更新**：启动后异步查询 [GitHub Releases API](https://api.github.com/repos/SiriLee/GraphViz/releases/latest)，发现有新版本时状态栏持续提示，已是最新或网络异常时自动消失。菜单项支持手动触发。
+- **打开下载页**：调用系统默认浏览器打开 [GitHub Releases](https://github.com/SiriLee/GraphViz/releases) 页面。
+- **关于**：显示版本号、项目简介、Qt 运行时版本、GitHub 链接和 MIT 许可证。
 
 ---
 
