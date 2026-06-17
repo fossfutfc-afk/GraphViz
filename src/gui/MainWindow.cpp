@@ -44,7 +44,7 @@ MainWindow::MainWindow(QWidget *parent)
     , m_graph(new Graph())
 {
     setWindowTitle(QString("GraphViz v%1 — 图可视化工具").arg(GRAPHVIZ_VERSION));
-    resize(1200, 750);
+    resize(1400, 900);
 
     // ── 菜单栏 ──
     QMenu *fileMenu = menuBar()->addMenu("文件(&F)");

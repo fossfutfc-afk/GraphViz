@@ -27,9 +27,9 @@ static QHash<QString, QPointF> runForceLayout(
     const double area = areaW * areaH;
     // 小图增大理想间距，防止挤在一起
     const double spacingBoost = (n <= 4) ? 1.2 : 1.0;
-    const double k = std::sqrt(area / n) * spacingBoost;
+    const double k = 0.8 * std::sqrt(area / n) * spacingBoost;
     const int iterations = 200;
-    const double margin = std::min(areaW, areaH) * 0.1;
+    const double margin = std::min(areaW, areaH) * 0.08;
 
     // 1. 环形初始布局（顶点均匀分布，防止初始聚集导致边重合）
     QRandomGenerator rng(seed);
