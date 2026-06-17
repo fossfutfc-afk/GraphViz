@@ -20,10 +20,10 @@ QHash<QString, QPointF> ForceLayout::compute(const Graph& graph,
     const int n = static_cast<int>(vertexIds.size());
     const double area = static_cast<double>(width) * height;
     // 小图增大理想间距，防止挤在一起
-    const double spacingBoost = (n <= 4) ? 1.8 : 1.0;
+    const double spacingBoost = (n <= 4) ? 1.2 : 1.0;
     const double k = std::sqrt(area / n) * spacingBoost;
-    const int iterations = 150;
-    const double margin = 70.0;
+    const int iterations = 200;
+    const double margin = 90.0;
 
     // 1. 环形初始布局（顶点均匀分布，防止初始聚集导致边重合）
     QRandomGenerator rng(42);
