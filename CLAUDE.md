@@ -75,6 +75,16 @@ Typical workflow: plan → implement → update README → build → package →
 
 When the user asks to create a release, follow these steps. Do not release without explicit confirmation.
 
+### User testing (before packaging)
+
+Before creating the zip and publishing, let the user test with an unzipped portable directory:
+
+1. Ask which version number to release.
+2. Bump `CMakeLists.txt` `project()` VERSION, then build.
+3. Assemble the portable directory under `dist/GraphViz-v<version>-portable/` (do NOT zip yet).
+4. The user launches `GraphViz.exe` from **inside that portable directory** — not from `build-gui/`. This ensures all bundled files (MANUAL.md, samples, Qt plugins) are found correctly at their intended paths relative to the executable.
+5. After the user confirms tests pass, create the zip and proceed to tag + release.
+
 ### Build a portable package
 
 ```bash
