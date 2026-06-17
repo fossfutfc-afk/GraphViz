@@ -400,6 +400,17 @@ bool GraphParser::parseLine(const std::string& line, Graph& graph,
         return false;
     }
 
+    // 1.5. 孤立点检测：若左顶点后无操作符，则为孤立点
+    {
+        size_t checkPos = pos;
+        while (checkPos < line.size() && (line[checkPos] == ' ' || line[checkPos] == '\t'))
+            ++checkPos;
+        if (checkPos >= line.size()) {
+            graph.addVertex(left);
+            return true;
+        }
+    }
+
     // 2. 解析操作符
     std::string opError;
     auto [opEnd, directed, weight, explicit_w, reverse] = parseOperator(line, pos, opError);
@@ -491,5 +502,13 @@ std::string GraphParser::serialize(const Graph& graph)
                 oss << fromStr << "-" << wStr << "--" << toStr << "\n";
         }
     }
+
+    // 输出孤立点（degree == 0）
+    for (const auto& name : graph.getAllVertexNames()) {
+        if (graph.degree(name) == 0) {
+            oss << formatVertex(name) << "\n";
+        }
+    }
+
     return oss.str();
 }

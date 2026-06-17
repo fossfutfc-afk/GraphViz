@@ -768,6 +768,12 @@ HamiltonResult GraphAlgorithm::hamiltonCircuit(const Graph& graph,
     auto allNodes = graph.getAllVertexNames();
     int n = static_cast<int>(allNodes.size());
 
+    // 非孤立顶点数，用于回溯阈值判断（孤立点不影响搜索空间）
+    int nNonIsolated = 0;
+    for (const auto& name : allNodes) {
+        if (graph.degree(name) > 0) ++nNonIsolated;
+    }
+
     if (n == 0) {
         result.found = false;
         result.message = "图没有顶点";
@@ -778,7 +784,7 @@ HamiltonResult GraphAlgorithm::hamiltonCircuit(const Graph& graph,
         result.nodes = {allNodes[0]};
         return result;
     }
-    if (n > 20) {
+    if (nNonIsolated > 20) {
         result.found = false;
         result.message = "顶点数超过20，回溯计算太慢，已跳过";
         return result;
@@ -890,6 +896,12 @@ HamiltonResult GraphAlgorithm::hamiltonPath(const Graph& graph,
     auto allNodes = graph.getAllVertexNames();
     int n = static_cast<int>(allNodes.size());
 
+    // 非孤立顶点数，用于回溯阈值判断（孤立点不影响搜索空间）
+    int nNonIsolated = 0;
+    for (const auto& name : allNodes) {
+        if (graph.degree(name) > 0) ++nNonIsolated;
+    }
+
     if (n == 0) {
         result.found = false;
         result.message = "图没有顶点";
@@ -900,7 +912,7 @@ HamiltonResult GraphAlgorithm::hamiltonPath(const Graph& graph,
         result.nodes = {allNodes[0]};
         return result;
     }
-    if (n > 20) {
+    if (nNonIsolated > 20) {
         result.found = false;
         result.message = "顶点数超过20，回溯计算太慢，已跳过";
         return result;
@@ -1032,6 +1044,14 @@ PlanarityResult GraphAlgorithm::checkPlanarity(const Graph& graph) {
         neighbors[e.to].insert(e.from);
     }
 
+    // 孤立点不影响平面性，单独统计非孤立顶点用于阈值判断
+    std::vector<std::string> nonIsoNodes;
+    for (const auto& name : allNodes) {
+        if (graph.degree(name) > 0)
+            nonIsoNodes.push_back(name);
+    }
+    int nni = static_cast<int>(nonIsoNodes.size());
+
     // 统计去重后的边数（unique vertex pairs）
     int mUnique = 0;
     for (const auto& kv : neighbors)
@@ -1039,11 +1059,11 @@ PlanarityResult GraphAlgorithm::checkPlanarity(const Graph& graph) {
     mUnique /= 2;  // 每条边被计数两次
 
     // ── Euler 公式快速否定: m_unique ≤ 3n - 6 (n ≥ 3) ──
-    // 使用去重边数，因为平行边可以并排绘制不产生交叉
-    if (mUnique > 3 * n - 6) {
+    // 使用去重边数和非孤立顶点数，因为孤立点不影响平面性
+    if (nni >= 3 && mUnique > 3 * nni - 6) {
         result.isPlanar = false;
         result.message = "Too many edges: m_unique=" + std::to_string(mUnique)
-            + " > 3n-6=" + std::to_string(3 * n - 6)
+            + " > 3n-6=" + std::to_string(3 * nni - 6)
             + " (Euler's formula violation)";
         return result;
     }
@@ -1092,26 +1112,30 @@ PlanarityResult GraphAlgorithm::checkPlanarity(const Graph& graph) {
         return true;
     };
 
-    // ── 直接搜索 K5 和 K3,3 子图（n ≤ 10 时暴力，更大时采样） ──
-    int maxN = std::min(n, 10);
+    // ── 直接搜索 K5 和 K3,3 子图（nni ≤ 10 时暴力） ──
+    // 仅搜索非孤立顶点组合，孤立点不参与 K5/K3,3 子图
 
     // 搜索 K5 子图
-    if (n >= 5) {
-        // 只在 n ≤ 10 时暴力搜索所有 5-组合
-        if (n <= 10) {
+    if (nni >= 5) {
+        // 只在 nni ≤ 10 时暴力搜索所有 5-组合
+        if (nni <= 10) {
             std::vector<int> comb = {0, 1, 2, 3, 4};
             while (true) {
-                if (isK5(comb)) {
+                // 将 nonIsoNodes 索引转换为全局 adjMatrix 索引
+                std::vector<int> globalComb(5);
+                for (int i = 0; i < 5; ++i)
+                    globalComb[i] = idx[nonIsoNodes[comb[i]]];
+                if (isK5(globalComb)) {
                     result.isPlanar = false;
                     result.message = "K5 subgraph found: vertices {"
-                        + allNodes[comb[0]] + ", " + allNodes[comb[1]] + ", "
-                        + allNodes[comb[2]] + ", " + allNodes[comb[3]] + ", "
-                        + allNodes[comb[4]] + "}";
+                        + nonIsoNodes[comb[0]] + ", " + nonIsoNodes[comb[1]] + ", "
+                        + nonIsoNodes[comb[2]] + ", " + nonIsoNodes[comb[3]] + ", "
+                        + nonIsoNodes[comb[4]] + "}";
                     return result;
                 }
                 // 下一个组合
                 int t = 4;
-                while (t >= 0 && comb[t] == n - 5 + t) --t;
+                while (t >= 0 && comb[t] == nni - 5 + t) --t;
                 if (t < 0) break;
                 ++comb[t];
                 for (int j = t + 1; j < 5; ++j)
@@ -1121,9 +1145,13 @@ PlanarityResult GraphAlgorithm::checkPlanarity(const Graph& graph) {
     }
 
     // 搜索 K3,3 子图
-    if (n >= 6 && n <= 10) {
+    if (nni >= 6 && nni <= 10) {
         std::vector<int> comb = {0, 1, 2, 3, 4, 5};
         while (true) {
+            // 将 nonIsoNodes 索引转换为全局 adjMatrix 索引
+            std::vector<int> globalComb(6);
+            for (int i = 0; i < 6; ++i)
+                globalComb[i] = idx[nonIsoNodes[comb[i]]];
             // 尝试所有二分划分: C(6,3)/2 = 10 种
             // 固定 comb[0] 在 A 组，从其余 5 个中选 2 个加入 A
             int rest[5] = {1, 2, 3, 4, 5};
@@ -1138,20 +1166,20 @@ PlanarityResult GraphAlgorithm::checkPlanarity(const Graph& graph) {
                             bArr[pos++] = rest[k];
                     }
                     b1 = bArr[0]; b2 = bArr[1]; b3 = bArr[2];
-                    if (isK33Partition(comb, a1, a2, a3, b1, b2, b3)) {
+                    if (isK33Partition(globalComb, a1, a2, a3, b1, b2, b3)) {
                         result.isPlanar = false;
                         result.message = "K3,3 subgraph found: {"
-                            + allNodes[comb[a1]] + "," + allNodes[comb[a2]] + ","
-                            + allNodes[comb[a3]] + "} / {"
-                            + allNodes[comb[b1]] + "," + allNodes[comb[b2]] + ","
-                            + allNodes[comb[b3]] + "}";
+                            + nonIsoNodes[comb[a1]] + "," + nonIsoNodes[comb[a2]] + ","
+                            + nonIsoNodes[comb[a3]] + "} / {"
+                            + nonIsoNodes[comb[b1]] + "," + nonIsoNodes[comb[b2]] + ","
+                            + nonIsoNodes[comb[b3]] + "}";
                         return result;
                     }
                 }
             }
             // 下一个组合
             int t = 5;
-            while (t >= 0 && comb[t] == n - 6 + t) --t;
+            while (t >= 0 && comb[t] == nni - 6 + t) --t;
             if (t < 0) break;
             ++comb[t];
             for (int j = t + 1; j < 6; ++j)
@@ -1162,17 +1190,17 @@ PlanarityResult GraphAlgorithm::checkPlanarity(const Graph& graph) {
     // ── 收缩度为 2 的顶点后重试（模拟 Kuratowski 细分检测） ──
     // 重复收缩度为 2 的顶点（非自环），简化图结构
     // 收缩后检查简化图是否含 K5 或 K3,3
-    if (n > 10) {
+    if (nni > 10) {
         result.isPlanar = true;
         result.message = "Likely planar: m=" + std::to_string(m)
-            + " <= 3n-6=" + std::to_string(3 * n - 6)
+            + " <= 3n-6=" + std::to_string(3 * nni - 6)
             + " (Euler condition satisfied, graph too large for exhaustive check)";
         return result;
     }
 
-    // n ≤ 10 且未找到 K5/K3,3 子图
+    // nni ≤ 10 且未找到 K5/K3,3 子图
     result.isPlanar = true;
     result.message = "Planar: no K5 or K3,3 subgraph found"
-        + std::string(n <= 10 ? " (exhaustive check)" : "");
+        + std::string(nni <= 10 ? " (exhaustive check)" : "");
     return result;
 }
