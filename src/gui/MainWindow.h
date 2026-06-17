@@ -10,6 +10,7 @@
 class Graph;
 class GraphWidget;
 class GraphTextEdit;
+class UpdateChecker;
 class QComboBox;
 class QLineEdit;
 class QLabel;
@@ -37,6 +38,9 @@ private slots:
     void onRedo();
     void onPrevSolution();
     void onNextSolution();
+    void onCheckForUpdates();
+    void onOpenDownloadPage();
+    void onAbout();
 
 private:
     QWidget* createInputPanel();
@@ -56,6 +60,7 @@ private:
     QLabel* m_statusLabel;
     QPushButton* m_btnPrevSolution = nullptr;
     QPushButton* m_btnNextSolution = nullptr;
+    UpdateChecker* m_updateChecker;
     HamiltonResult m_lastHamiltonResult;
     bool m_hasHamiltonResult = false;
     EulerResult m_lastEulerResult;

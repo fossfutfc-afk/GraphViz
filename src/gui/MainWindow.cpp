@@ -1,12 +1,14 @@
 #include "MainWindow.h"
 #include "GraphWidget.h"
 #include "GraphTextEdit.h"
+#include "UpdateChecker.h"
 #include "Graph.h"
 #include "GraphParser.h"
 #include "GraphAlgorithm.h"
 
 #include <QApplication>
 #include <QComboBox>
+#include <QDesktopServices>
 #include <QFileDialog>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -16,8 +18,10 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSplitter>
-#include <QTextBlock>
 #include <QStatusBar>
+#include <QTextBlock>
+#include <QTimer>
+#include <QUrl>
 #include <QVBoxLayout>
 #include <fstream>
 #include <sstream>
@@ -78,6 +82,13 @@ MainWindow::MainWindow(QWidget *parent)
     QMenu *viewMenu = menuBar()->addMenu("视图(&V)");
     viewMenu->addAction("重置布局(&R)", this, &MainWindow::onResetLayout);
 
+    // ── 帮助菜单 ──
+    QMenu *helpMenu = menuBar()->addMenu("帮助(&H)");
+    helpMenu->addAction("检查更新(&U)", this, &MainWindow::onCheckForUpdates);
+    helpMenu->addAction("打开下载页(&D)", this, &MainWindow::onOpenDownloadPage);
+    helpMenu->addSeparator();
+    helpMenu->addAction("关于(&A)", this, &MainWindow::onAbout);
+
     // ── 中央区域：水平分割 ──
     QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
     splitter->setChildrenCollapsible(false);
@@ -103,6 +114,33 @@ MainWindow::MainWindow(QWidget *parent)
     // ── 状态栏 ──
     m_statusLabel = new QLabel("就绪");
     statusBar()->addWidget(m_statusLabel);
+
+    // ── 更新检查器 ──
+    m_updateChecker = new UpdateChecker(this);
+    connect(m_updateChecker, &UpdateChecker::updateCheckFinished,
+            this, [this](UpdateChecker::UpdateStatus status, const QString &message) {
+        switch (status) {
+        case UpdateChecker::UpdateStatus::UpdateAvailable:
+            // Persistent — stays until user acts
+            updateStatus(QString("发现新版本 %1 — 点击\"帮助→打开下载页\"下载")
+                             .arg(message));
+            break;
+        case UpdateChecker::UpdateStatus::AlreadyLatest:
+            updateStatus("已是最新版本");
+            QTimer::singleShot(5000, this, [this]() {
+                if (m_statusLabel->text() == "已是最新版本")
+                    updateStatus("就绪");
+            });
+            break;
+        case UpdateChecker::UpdateStatus::Error:
+            updateStatus(QString("检查更新失败: %1").arg(message));
+            QTimer::singleShot(5000, this, [this]() {
+                if (m_statusLabel->text().startsWith("检查更新失败"))
+                    updateStatus("就绪");
+            });
+            break;
+        }
+    });
 }
 
 MainWindow::~MainWindow()
@@ -118,6 +156,9 @@ void MainWindow::showEvent(QShowEvent *event)
     if (firstShow) {
         firstShow = false;
         loadSampleGraph();
+
+        // 启动后 ~2s 异步检查更新
+        QTimer::singleShot(2000, this, &MainWindow::onCheckForUpdates);
     }
 }
 
@@ -672,4 +713,33 @@ void MainWindow::onNextSolution()
         .arg(result.isCircuit ? "回路" : "通路")
         .arg(result.solutionIndex + 1).arg(total)
         .arg(result.nodes.size() - (result.isCircuit ? 1 : 0)));
+}
+
+// ── 帮助菜单 slots ──
+
+void MainWindow::onCheckForUpdates()
+{
+    updateStatus("正在检查更新...");
+    m_updateChecker->checkForUpdates();
+}
+
+void MainWindow::onOpenDownloadPage()
+{
+    QDesktopServices::openUrl(
+        QUrl("https://github.com/SiriLee/GraphViz/releases"));
+}
+
+void MainWindow::onAbout()
+{
+    QMessageBox::about(this, "关于 GraphViz",
+        QString(
+            "GraphViz v%1\n\n"
+            "图论算法可视化工具\n"
+            "支持有向/无向图的交互式编辑、自动布局与经典图论算法演示。\n\n"
+            "Qt %2\n"
+            "GitHub: https://github.com/SiriLee/GraphViz\n\n"
+            "MIT License\n"
+            "Copyright 2025 SiriLee")
+        .arg(GRAPHVIZ_VERSION)
+        .arg(QString::fromLatin1(qVersion())));
 }

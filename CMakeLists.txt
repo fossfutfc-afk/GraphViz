@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(GraphViz VERSION 1.1.1 LANGUAGES CXX)
+project(GraphViz VERSION 1.2.0 LANGUAGES CXX)
 
 # C++17
 set(CMAKE_CXX_STANDARD 17)
@@ -18,7 +18,7 @@ if(BUILD_GUI)
             "  Use cmake --preset gui, or set -DCMAKE_PREFIX_PATH=<qt_mingw_path>")
     endif()
 
-    find_package(Qt6 REQUIRED COMPONENTS Widgets)
+    find_package(Qt6 REQUIRED COMPONENTS Widgets Network)
     set(CMAKE_AUTOMOC ON)
 endif()
 
@@ -34,6 +34,7 @@ set(GUI_SOURCES
     src/gui/GraphWidget.cpp
     src/gui/GraphTextEdit.cpp
     src/gui/ForceLayout.cpp
+    src/gui/UpdateChecker.cpp
 )
 
 add_executable(GraphViz WIN32
@@ -46,7 +47,7 @@ target_include_directories(GraphViz PRIVATE include)
 if(BUILD_GUI)
     target_sources(GraphViz PRIVATE ${GUI_SOURCES})
     target_include_directories(GraphViz PRIVATE src/gui)
-    target_link_libraries(GraphViz PRIVATE Qt6::Widgets)
+    target_link_libraries(GraphViz PRIVATE Qt6::Widgets Qt6::Network)
     target_compile_definitions(GraphViz PRIVATE BUILD_GUI=1)
     target_compile_definitions(GraphViz PRIVATE
         GRAPHVIZ_VERSION="${PROJECT_VERSION}")
