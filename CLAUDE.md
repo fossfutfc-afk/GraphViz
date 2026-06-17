@@ -71,7 +71,7 @@ Text input → GraphParser::parse() → Graph (adjacency list)
 
 ## Releasing
 
-Typical workflow: plan → implement → build → package → user tests → user approves → tag → write release notes → publish.
+Typical workflow: plan → implement → update README → build → package → user tests → user approves → tag → write release notes → publish.
 
 When the user asks to create a release, follow these steps. Do not release without explicit confirmation.
 
